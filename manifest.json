@@ -1,0 +1,12 @@
+{
+  "name": "青蛙池塘 Frog Pond",
+  "short_name": "Frog Pond",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1b1e",
+  "theme_color": "#0d1b1e",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
