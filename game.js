@@ -112,19 +112,24 @@ const LEVELS = [
 
 /* ---------------- population ---------------- */
 /* 池塘里的瓢虫：开局每种颜色各一只，之后每 5 秒飞入一只随机颜色的，
-   最多同时有 7 只。超过 7 只时，最早进池的那只会飞走（随机一个方向）。 */
+   池塘上最多同时有 6 只。已经满 6 只时，新的一只飞进来的同时，
+   池塘里随机选一只起飞，飞出池塘。 */
 
 const POP = {
-  max: 7,              // 池塘里最多同时有几只
+  max: 6,              // 池塘里最多同时有几只
   spawnEvery: 5000,    // 每隔几毫秒飞入一只
   nextSpawnAt: 0,
   maxFlying: 1,        // 同一时刻只允许一只虫在空中
-  visitors: true       // 这一关允不允许访客瓢虫飞进来
+  visitors: true,      // 这一关允不允许访客瓢虫飞进来
 };
 
 /* 找出当前在飞的虫（最多一只） */
 function flyingBeetle() {
-  return state.beetles.find(b => b.alive && b.flying && !b.leaving) || null;
+  return state.beetles.find(b => b.alive && b.flying && !b.leaving && !b.arriving) || null;
+}
+
+function airborneBeetle() {
+  return state.beetles.find(b => b.alive && b.flying) || null;
 }
 
 /* ---------------- dom ---------------- */
@@ -650,7 +655,7 @@ function beetleNewWaypoint(b) {
 
 function beetleTakeoff(b, now, startled) {
   // 飞行权是唯一的 —— 已经有别的虫在飞就不起飞
-  if (flyingBeetle()) return;
+  if (airborneBeetle()) return;
   const c = padCenter(b.home.x, b.home.y);
   b.flying = true;
   b.startled = !!startled;
@@ -758,8 +763,8 @@ function beetleStep(b, dt, now) {
 }
 
 /* 飞入一只新的瓢虫：从池塘边缘外飞进来，落在一片空睡莲上 */
-function spawnBeetle(now) {
-  const pad = pickFreePad();
+function spawnBeetle(now, homePad, color) {
+  const pad = homePad || pickFreePad();
   if (!pad) return null;
 
   const c = padCenter(pad.x, pad.y);
@@ -774,7 +779,7 @@ function spawnBeetle(now) {
     x: entry.x, y: entry.y, alive: true,
     gx: pad.x, gy: pad.y,
     home: { x: pad.x, y: pad.y },
-    color: Math.floor(Math.random() * BEETLE_COLORS.length),
+    color: color == null ? Math.floor(Math.random() * BEETLE_COLORS.length) : color,
     arrivedAt: now,
     leaving: false, leaveAt: 0,
     flying: true,             // 正在飞进来
@@ -826,22 +831,20 @@ function updateBeetles(now) {
   if (!POP.nextSpawnAt) POP.nextSpawnAt = now + POP.spawnEvery;
   if (POP.visitors && now >= POP.nextSpawnAt) {
     POP.nextSpawnAt = now + POP.spawnEvery;
-    const alive = state.beetles.filter(b => b.alive);
-    if (alive.length >= POP.max) {
-      // 超过上限 —— 让最早进池的那只飞走
-      // 优先赶走「访客」，四只目标瓢虫不能被赶走，否则关卡就赢不了了
-      const pool = alive.filter(b => !b.target);
-      const cand = pool.length
-        ? pool.reduce((a, b) => (b.arrivedAt < a.arrivedAt ? b : a))
-        : alive.reduce((a, b) => (b.arrivedAt < a.arrivedAt ? b : a));
+    const living = state.beetles.filter(b => b.alive && !b.leaving);
+    if (living.length >= POP.max) {
+      // 满 6 只：随机选一只起飞离场，同时让新的一只飞进来。
+      const cand = living[Math.floor(Math.random() * living.length)];
       beetleLeave(cand, now);
-    } else if (!flyingBeetle()) {
-      // 空中没别的虫，才飞进来一只
+      // 目标虫的荷叶和颜色由同一只新虫接替，不产生额外目标。
+      const nb = spawnBeetle(now, cand.home, cand.color);
+      if (nb) {
+        nb.target = !!cand.target;
+        state.beetles.push(nb);
+      }
+    } else {
       const nb = spawnBeetle(now);
       if (nb) state.beetles.push(nb);
-    } else {
-      // 空中已经有虫了 —— 下一轮再飞进来
-      POP.nextSpawnAt = now + 1200;
     }
   }
 
@@ -878,21 +881,21 @@ function updateBeetles(now) {
       beetleStep(b, dt, now);
       const out = b.x < -cell || b.x > W + cell || b.y < -cell || b.y > H + cell;
       if (out) { b.alive = false; updateStats(); }
-      else if (now - b.leaveAt > 6000) { b.alive = false; updateStats(); }
+      else if (now - b.leaveAt > 4500) { b.alive = false; updateStats(); }
       return;
     }
 
     if (!b.flying) {
       // 停栖中 —— 只有轮到它飞的时候才会起飞
-      if (now >= b.perchUntil) {
+      if (now >= b.perchUntil && !b.arriving) {
         // 场上已经有别的虫在飞，就先等着
-        if (!flyingBeetle()) beetleTakeoff(b, now, false);
+        if (!airborneBeetle()) beetleTakeoff(b, now, false);
         return;
       }
       // 青蛙靠得太近 —— 吓它起飞（同样要抢到「飞行权」）
       const pc = padCenter(b.gx, b.gy);
       const dist = Math.hypot(pc.x - fc.x, pc.y - fc.y) / cell;
-      if (dist < FLY.startleDist && !flyingBeetle()) beetleTakeoff(b, now, true);
+      if (dist < FLY.startleDist && !airborneBeetle()) beetleTakeoff(b, now, true);
       return;
     }
 
@@ -900,24 +903,16 @@ function updateBeetles(now) {
   });
 
   // 清掉已经飞走的
-  if (state.beetles.length > 24) state.beetles = state.beetles.filter(b => b.alive || !b.leaving);
+  state.beetles = state.beetles.filter(b => b.alive);
 
-  // 目标瓢虫不能丢 —— 真丢了就补一只同颜色的回来，保证关卡可解
-  const lost = state.beetles.find(b => b.target && !b.alive);
-  if (lost) {
-    lost.alive = true;
-    lost.leaving = false;
-    lost.flying = true;
-    lost.arrivedAt = now;
-    lost.x = padCenter(lost.home.x, lost.home.y).x;
-    lost.y = padCenter(lost.home.x, lost.home.y).y;
-    lost.gx = lost.home.x; lost.gy = lost.home.y;
-    lost.height = 0.6; lost.climb = 0;
-    lost.returning = false;
-    lost.landAt = now + 4000;
-    lost.tookOffAt = now;
-    beetleNewWaypoint(lost);
-  }
+  // 目标按「四色各一只」维护。换虫时如果目标被选中，
+  // 只让同色的新虫接替，不额外增加目标数量。
+  const targetColors = new Set();
+  state.beetles.forEach(b => {
+    if (!b.alive || b.leaving || !b.target) return;
+    if (targetColors.has(b.color)) b.target = false;
+    else targetColors.add(b.color);
+  });
 }
 
 /* 虫的当前位置（像素坐标） */
@@ -1158,7 +1153,7 @@ function checkWin() {
 }
 
 function updateStats() {
-  $('#statBeetles').textContent = state.beetles.filter(b => b.alive && b.target).length;
+  $('#statBeetles').textContent = state.beetles.filter(b => b.alive && !b.leaving && b.target).length;
   $('#statLevel').textContent = state.level + 1;
 }
 
