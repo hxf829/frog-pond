@@ -112,19 +112,29 @@ const LEVELS = [
 
 /* ---------------- population ---------------- */
 /* 池塘里的瓢虫：开局每种颜色各一只，之后每 5 秒飞入一只随机颜色的，
-   最多同时有 7 只。超过 7 只时，最早进池的那只会飞走（随机一个方向）。 */
+   池塘上最多同时有 6 只。已经满 6 只时，新的一只飞进来的同时，
+   池塘里会随机有一只飞出去 —— 一进一出，保持 6 只。
+
+   平时只有一只虫在「轮换飞行」，其余都停在荷叶上；
+   只有满员换虫的这一下会一进一出同时发生。 */
 
 const POP = {
-  max: 7,              // 池塘里最多同时有几只
+  max: 6,              // 池塘里最多同时有几只
   spawnEvery: 5000,    // 每隔几毫秒飞入一只
   nextSpawnAt: 0,
   maxFlying: 1,        // 同一时刻只允许一只虫在空中
-  visitors: true       // 这一关允不允许访客瓢虫飞进来
+  visitors: true,      // 这一关允不允许访客瓢虫飞进来
+  owedTargets: []      // 被赶走的目标瓢虫 {color,home}，下一只就补同色同位置的回来
 };
 
 /* 找出当前在飞的虫（最多一只） */
 function flyingBeetle() {
   return state.beetles.find(b => b.alive && b.flying && !b.leaving) || null;
+}
+
+/* 空中还有没有虫（连正在飞走的也算）—— 保证同一时刻只有一只 */
+function airborneBeetle() {
+  return state.beetles.find(b => b.alive && b.flying) || null;
 }
 
 /* ---------------- dom ---------------- */
@@ -184,6 +194,7 @@ function loadLevel(i) {
   state.holes = (L.holes || []).map(([x, y]) => ({ x, y }));
   POP.nextSpawnAt = 0;
   POP.visitors = L.visitors !== false;
+  POP.owedTargets = [];
   const st = L.start || [1, 3, 0];
   state.frog = { x: st[0], y: st[1], dir: st[2], color: 0 };
   state.program = [];
@@ -650,7 +661,7 @@ function beetleNewWaypoint(b) {
 
 function beetleTakeoff(b, now, startled) {
   // 飞行权是唯一的 —— 已经有别的虫在飞就不起飞
-  if (flyingBeetle()) return;
+  if (airborneBeetle()) return;
   const c = padCenter(b.home.x, b.home.y);
   b.flying = true;
   b.startled = !!startled;
@@ -702,7 +713,10 @@ function beetleStep(b, dt, now) {
   // 速度：平滑趋近目标速度；回巢时越近越慢，落地才不会有跳变
   let wantSpeed = FLY.cruiseSpeed * (b.startled ? FLY.startleBoost : 1);
   if (b.returning && !b.startled) {
-    wantSpeed = FLY.cruiseSpeed * Math.max(0.12, Math.min(1, toHome / 1.2));
+    // 刚飞进来的那只：先赶快飞到自己的睡莲，别在画面外磨蹭
+    wantSpeed = (b.arriving && toHome > 1.2)
+      ? FLY.cruiseSpeed * 1.9
+      : FLY.cruiseSpeed * Math.max(0.12, Math.min(1, toHome / 1.2));
   }
   const cur = Math.hypot(b.vx, b.vy);
   const k = cur === 0 ? wantSpeed : cur + (wantSpeed - cur) * Math.min(1, dt * 3);
@@ -742,9 +756,9 @@ function beetleStep(b, dt, now) {
   }
 
   /* ---- 降落：高度回到水面且正好在睡莲上 ---- */
-  if (!b.startled && b.returning && b.height <= 0.02
-      && (toHome < FLY.landRadius || toHome < 0.35)
-      && now - b.tookOffAt > 600) {
+  // 回到自己的睡莲附近、并且已经降到很低 —— 就落下来
+  if (!b.startled && b.returning
+      && (toHome < FLY.landRadius || (toHome < 0.8 && b.height <= 0.20))) {
     b.flying = false;
     b.returning = false;
     b.arriving = false;
@@ -752,29 +766,33 @@ function beetleStep(b, dt, now) {
     b.height = 0; b.vx = 0; b.vy = 0; b.climb = 0;
     b.perchUntil = now + FLY.perchMin + Math.random() * (FLY.perchMax - FLY.perchMin);
     // 轮到下一只飞了
-    POP.nextFlyAt = now + 300;
+    POP.nextFlyAt = now + 1500;
     sfxLand();
   }
 }
 
 /* 飞入一只新的瓢虫：从池塘边缘外飞进来，落在一片空睡莲上 */
-function spawnBeetle(now) {
-  const pad = pickFreePad();
+function spawnBeetle(now, homePad, color) {
+  const pad = homePad || pickFreePad();
   if (!pad) return null;
 
   const c = padCenter(pad.x, pad.y);
-  // 从池塘外面飞进来 —— 朝着自己的睡莲飞，飞到就降落
+  // 从池塘边外面一点点飞进来 —— 朝着自己的睡莲飞，飞到就降落。
+  // 起点别太远，否则虫会在画面外飞很久，看起来像「凭空少了几只」。
+  const margin = cell * 0.9;
   const edge = Math.random() * Math.PI * 2;
   const entry = {
-    x: c.x + Math.cos(edge) * (W * 0.7),
-    y: c.y + Math.sin(edge) * (H * 0.7)
+    x: Math.max(ox - margin, Math.min(ox + COLS * cell + margin,
+        c.x + Math.cos(edge) * (COLS * cell * 0.62))),
+    y: Math.max(oy - margin, Math.min(oy + ROWS * cell + margin,
+        c.y + Math.sin(edge) * (ROWS * cell * 0.62)))
   };
 
   const b = {
     x: entry.x, y: entry.y, alive: true,
     gx: pad.x, gy: pad.y,
     home: { x: pad.x, y: pad.y },
-    color: Math.floor(Math.random() * BEETLE_COLORS.length),
+    color: color == null ? Math.floor(Math.random() * BEETLE_COLORS.length) : color,
     arrivedAt: now,
     leaving: false, leaveAt: 0,
     flying: true,             // 正在飞进来
@@ -791,6 +809,7 @@ function spawnBeetle(now) {
 
 /* 找一片空着的睡莲给新来的虫落脚 */
 function pickFreePad() {
+  // 正在飞走的虫不占位 —— 它的荷叶马上就能给新来的用
   const taken = state.beetles.filter(b => b.alive && !b.leaving && b.gx >= 0)
     .map(b => b.gx + ',' + b.gy);
   const free = [];
@@ -821,27 +840,78 @@ function beetleLeave(b, now) {
   sfxFly();
 }
 
+/* 让一只正在飞的虫尽快落地（把空中让出来） */
+function forceLand(b, now) {
+  if (!b || !b.alive) return;
+  b.flying = false;
+  b.leaving = false;
+  b.arriving = false;
+  b.returning = false;
+  b.startled = false;
+  b.gx = b.home.x; b.gy = b.home.y;
+  b.x = padCenter(b.gx, b.gy).x;
+  b.y = padCenter(b.gx, b.gy).y;
+  b.height = 0; b.vx = 0; b.vy = 0; b.climb = 0;
+  b.perchUntil = now + FLY.perchMin + Math.random() * (FLY.perchMax - FLY.perchMin);
+}
+
+function forceLand(b, now) {
+  if (!b || !b.alive) return;
+  b.flying = false; b.leaving = false; b.arriving = false;
+  b.returning = false; b.startled = false;
+  b.gx = b.home.x; b.gy = b.home.y;
+  b.x = padCenter(b.gx, b.gy).x;
+  b.y = padCenter(b.gx, b.gy).y;
+  b.height = 0; b.vx = 0; b.vy = 0; b.climb = 0;
+  b.perchUntil = now + FLY.perchMin + Math.random() * (FLY.perchMax - FLY.perchMin);
+}
+
 function updateBeetles(now) {
-  /* ---- 定时飞入新的瓢虫 ---- */
+  /* ---- 种群调度 ----
+     每 5 秒准点来一只：
+       · 池塘没满 6 只 -> 从池塘外飞进来一只
+       · 已经满 6 只    -> 同一瞬间，随机一只飞出去、新的一只飞进来（一进一出）
+     四只「目标瓢虫」优先留住：满员时优先赶走访客。
+     万一目标瓢虫真的被赶走了，会记在 owedTargets 里，下一次用它原来的
+     颜色和睡莲补回来，保证关卡永远可解。 */
+
   if (!POP.nextSpawnAt) POP.nextSpawnAt = now + POP.spawnEvery;
+
   if (POP.visitors && now >= POP.nextSpawnAt) {
     POP.nextSpawnAt = now + POP.spawnEvery;
-    const alive = state.beetles.filter(b => b.alive);
-    if (alive.length >= POP.max) {
-      // 超过上限 —— 让最早进池的那只飞走
-      // 优先赶走「访客」，四只目标瓢虫不能被赶走，否则关卡就赢不了了
-      const pool = alive.filter(b => !b.target);
-      const cand = pool.length
-        ? pool.reduce((a, b) => (b.arrivedAt < a.arrivedAt ? b : a))
-        : alive.reduce((a, b) => (b.arrivedAt < a.arrivedAt ? b : a));
-      beetleLeave(cand, now);
-    } else if (!flyingBeetle()) {
-      // 空中没别的虫，才飞进来一只
+
+    const living = state.beetles.filter(b => b.alive && !b.leaving);
+
+    // 到点了 —— 空中那只先落回荷叶，把「飞」留给要来/要走的那两只
+    const air = flyingBeetle();
+    if (air) forceLand(air, now);
+
+    if (living.length >= POP.max) {
+      // 满了：一进一出
+      const visitors = living.filter(b => !b.target);
+      const pool = visitors.length ? visitors : living;
+      const cand = pool[Math.floor(Math.random() * pool.length)];
+      if (cand) {
+        if (cand.target) {
+          // 目标瓢虫被赶走 —— 记下它的颜色和睡莲，稍后补回来
+          POP.owedTargets.push({ color: cand.color, home: { x: cand.home.x, y: cand.home.y } });
+        }
+        beetleLeave(cand, now);      // 飞出去
+        cand.flyOutFast = true;
+      }
+      // 同时飞进来一只：优先补欠着的目标虫
+      let nb = null;
+      if (POP.owedTargets.length) {
+        const owes = POP.owedTargets.shift();
+        nb = spawnBeetle(now, owes.home, owes.color);
+        if (nb) { nb.target = true; nb.color = owes.color; }
+      }
+      if (!nb) nb = spawnBeetle(now);
+      if (nb) { state.beetles.push(nb); updateStats(); }
+    } else {
+      // 没满：直接飞进来一只
       const nb = spawnBeetle(now);
       if (nb) state.beetles.push(nb);
-    } else {
-      // 空中已经有虫了 —— 下一轮再飞进来
-      POP.nextSpawnAt = now + 1200;
     }
   }
 
@@ -853,12 +923,13 @@ function updateBeetles(now) {
   const fc = padCenter(f.x, f.y);
 
   /* ---- 飞行权：同一时刻只有一只虫在空中 ---- */
+  // 轮换飞行看的是「非离开」的虫；离场中的那只不算 —— 它正在飞出池塘
   const flyer = flyingBeetle();
   if (!flyer) {
-    // 空出来了，让下一只接棒
+    // 空出来了，让下一只接棒轮换飞行
     if (!POP.nextFlyAt) POP.nextFlyAt = now;
     if (now >= POP.nextFlyAt) {
-      const next = state.beetles.find(b => b.alive && !b.flying && !b.leaving);
+      const next = state.beetles.find(b => b.alive && !b.flying && !b.leaving && !b.arriving);
       if (next) {
         beetleTakeoff(next, now, false);
         POP.nextFlyAt = 0;
@@ -878,7 +949,7 @@ function updateBeetles(now) {
       beetleStep(b, dt, now);
       const out = b.x < -cell || b.x > W + cell || b.y < -cell || b.y > H + cell;
       if (out) { b.alive = false; updateStats(); }
-      else if (now - b.leaveAt > 6000) { b.alive = false; updateStats(); }
+      else if (now - b.leaveAt > (b.flyOutFast ? 2200 : 6000)) { b.alive = false; updateStats(); }
       return;
     }
 
@@ -886,38 +957,25 @@ function updateBeetles(now) {
       // 停栖中 —— 只有轮到它飞的时候才会起飞
       if (now >= b.perchUntil) {
         // 场上已经有别的虫在飞，就先等着
-        if (!flyingBeetle()) beetleTakeoff(b, now, false);
+        if (!airborneBeetle()) beetleTakeoff(b, now, false);
         return;
       }
       // 青蛙靠得太近 —— 吓它起飞（同样要抢到「飞行权」）
       const pc = padCenter(b.gx, b.gy);
       const dist = Math.hypot(pc.x - fc.x, pc.y - fc.y) / cell;
-      if (dist < FLY.startleDist && !flyingBeetle()) beetleTakeoff(b, now, true);
+      if (dist < FLY.startleDist && !airborneBeetle()) beetleTakeoff(b, now, true);
       return;
     }
 
     beetleStep(b, dt, now);
   });
 
-  // 清掉已经飞走的
-  if (state.beetles.length > 24) state.beetles = state.beetles.filter(b => b.alive || !b.leaving);
+  // 清掉已经死掉/飞走的（数组里不留垃圾，否则上限判断会被撑破）
+  state.beetles = state.beetles.filter(b => b.alive);
 
-  // 目标瓢虫不能丢 —— 真丢了就补一只同颜色的回来，保证关卡可解
-  const lost = state.beetles.find(b => b.target && !b.alive);
-  if (lost) {
-    lost.alive = true;
-    lost.leaving = false;
-    lost.flying = true;
-    lost.arrivedAt = now;
-    lost.x = padCenter(lost.home.x, lost.home.y).x;
-    lost.y = padCenter(lost.home.x, lost.home.y).y;
-    lost.gx = lost.home.x; lost.gy = lost.home.y;
-    lost.height = 0.6; lost.climb = 0;
-    lost.returning = false;
-    lost.landAt = now + 4000;
-    lost.tookOffAt = now;
-    beetleNewWaypoint(lost);
-  }
+  // 目标瓢虫不能真的丢 —— 被随机赶走的那只，稍后要飞回自己的睡莲，
+  // 保证「四色各一只」的过关条件永远凑得齐。
+  // 它优先级最高：池子满了就先请走一只「访客」给它腾位置。
 }
 
 /* 虫的当前位置（像素坐标） */
@@ -1437,6 +1495,10 @@ function drawFrog() {
   ctx.beginPath();
   ctx.ellipse(0, 0, r * 0.92 * breathe, r * 1.02 * breathe, 0, 0, Math.PI * 2);
   ctx.fill();
+  // 描一圈深色边 —— 白色的瓢虫停在浅绿荷叶上也能一眼看见
+  ctx.strokeStyle = 'rgba(18, 30, 26, 0.55)';
+  ctx.lineWidth = Math.max(1.2, r * 0.10);
+  ctx.stroke();
 
   // belly
   ctx.fillStyle = 'rgba(255,255,255,0.16)';
