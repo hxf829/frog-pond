@@ -94,7 +94,10 @@ const POP = {
   spawnEvery: 5000,
   nextSpawnAt: 0,
   visitors: true,
-  nextFlyAt: 0
+  nextFlyAt: 0,
+  // 换虫分两步：新虫先飞进来，快落地时才让旧虫起飞。
+  // 这样任何时候荷叶上都还有 6 只，不会出现「少了一只」的空档。
+  evictPending: null
 };
 
 const FLY = {
@@ -250,6 +253,7 @@ function loadLevel(i) {
 
   POP.nextSpawnAt = 0;
   POP.nextFlyAt = 0;
+  POP.evictPending = null;
   POP.visitors = L.visitors !== false;
 
   ops = [];
@@ -335,7 +339,7 @@ function beetleLeave(b, now) {
   else if (m === dt2) a = -Math.PI / 2 + (Math.random() - .5) * .5;
   else a = Math.PI / 2 + (Math.random() - .5) * .5;
   b.angle = a;
-  const spd = FLY.cruiseSpeed * 2.6;
+  const spd = FLY.cruiseSpeed * 4.2;   // 离场飞得快一点，2 秒左右飞出画面
   b.vx = Math.cos(a) * spd; b.vy = Math.sin(a) * spd;
   b.climb = FLY.climbRate * 1.2;
   b.height = Math.max(b.height, .35);
@@ -344,8 +348,9 @@ function beetleLeave(b, now) {
 
 function beetleStep(b, dt, now) {
   if (b.leaving) {
-    b.x += b.vx * hexR * dt / 10;
-    b.y += b.vy * hexR * dt / 10;
+    // 速度单位是「格/秒」，乘 hexR 换成像素/秒
+    b.x += b.vx * hexR * dt;
+    b.y += b.vy * hexR * dt;
     b.height += b.climb * dt;
     if (b.height > 1.4) b.climb = 0;
     return;
@@ -375,7 +380,8 @@ function beetleStep(b, dt, now) {
 
   let want = FLY.cruiseSpeed * (b.startled ? FLY.startleBoost : 1);
   if (b.returning && !b.startled) {
-    want = (b.arriving && toHome > 1.2) ? FLY.cruiseSpeed * 1.9
+    // 刚飞进来的那只：一路高速飞到自己的荷叶，别在画面外磨蹭太久
+    want = (b.arriving && toHome > 0.8) ? FLY.cruiseSpeed * 5.0
          : FLY.cruiseSpeed * Math.max(.12, Math.min(1, toHome / 1.2));
   }
   const cur = Math.hypot(b.vx, b.vy);
@@ -393,8 +399,8 @@ function beetleStep(b, dt, now) {
   }
   b.climb += (wantClimb - b.climb) * Math.min(1, dt * 2.5);
 
-  b.x += b.vx * hexR * dt / 10;
-  b.y += b.vy * hexR * dt / 10;
+  b.x += b.vx * hexR * dt;
+  b.y += b.vy * hexR * dt;
   b.height += b.climb * dt;
   if (b.height < 0) { b.height = 0; b.climb = 0; }
 
@@ -436,11 +442,19 @@ function spawnBeetle(now, atQ, atR, color) {
   }
   const b = makeBeetle(q, r, color, now, false);
   const c = cellCenter(q, r);
-  const a = Math.random() * Math.PI * 2;
-  b.x = c.x + Math.cos(a) * W * .55;
-  b.y = c.y + Math.sin(a) * H * .55;
+
+  // 起点必须严格在画面外（画布四边之外），否则会「凭空出现」。
+  // 随机挑一条边，沿这条边在画布外 60~160px 处出生，再飞向自己的荷叶。
+  const margin = 60 + Math.random() * 100;
+  const side = Math.floor(Math.random() * 4);
+  if (side === 0)      { b.x = -margin;              b.y = c.y; }
+  else if (side === 1) { b.x = W + margin;           b.y = c.y; }
+  else if (side === 2) { b.x = c.x;                  b.y = -margin; }
+  else                 { b.x = c.x;                  b.y = H + margin; }
+
   b.flying = true; b.arriving = true; b.returning = true;
-  b.height = .5; b.climb = 0; b.angle = Math.atan2(c.y - b.y, c.x - b.x);
+  b.height = .5; b.climb = 0;
+  b.angle = Math.atan2(c.y - b.y, c.x - b.x);
   b.perchUntil = now + 900;
   return b;
 }
@@ -448,15 +462,34 @@ function spawnBeetle(now, atQ, atR, color) {
 function updateBeetles(now) {
   if (!POP.nextSpawnAt) POP.nextSpawnAt = now + POP.spawnEvery;
 
+  /* 计数口径：只算「停在荷叶上」的虫（不含正在飞入 / 正在离场）。
+     这一组任何时候都不允许超过 POP.max。 */
+  const onPads = () => state.beetles.filter(b => b.alive && !b.leaving && !b.arriving);
+
+  // 换虫第二步：新虫快落到荷叶上时，旧的那只才起飞离场
+  if (POP.evictPending && POP.evictPending.alive && !POP.evictPending.leaving) {
+    const old = POP.evictPending;
+    const nb = state.beetles.find(b => b.alive && b.arriving);
+    const near = nb
+      ? Math.hypot(nb.x - cellCenter(nb.q, nb.r).x, nb.y - cellCenter(nb.q, nb.r).y) / hexR < 1.6
+      : true;
+    if (near) { beetleLeave(old, now); POP.evictPending = null; }
+  }
+
   if (POP.visitors && now >= POP.nextSpawnAt) {
     POP.nextSpawnAt = now + POP.spawnEvery;
-    const living = state.beetles.filter(b => b.alive && !b.leaving);
-    if (living.length >= POP.max) {
-      const cand = living[Math.floor(Math.random() * living.length)];
-      beetleLeave(cand, now);
+    const pads = onPads();
+
+    if (POP.evictPending) {
+      // 上一组还没换完 —— 这一拍跳过（不会叠加）
+    } else if (pads.length >= POP.max) {
+      // 满了：新虫先飞进来，旧虫继续留在荷叶上，
+      // 等新虫快到时旧虫才起飞 —— 荷叶上不会出现空位。
+      const cand = pads[Math.floor(Math.random() * pads.length)];
       const nb = spawnBeetle(now, cand.q, cand.r, cand.target ? cand.color : null);
-      if (nb) { nb.target = cand.target; state.beetles.push(nb); }
-    } else {
+      if (nb) { nb.target = cand.target; state.beetles.push(nb); POP.evictPending = cand; }
+    } else if (!state.beetles.some(b => b.alive && b.arriving)) {
+      // 没满，而且没有正在飞入的 —— 放一只进来
       const nb = spawnBeetle(now);
       if (nb) state.beetles.push(nb);
     }
@@ -801,9 +834,6 @@ function drawFrogs() {
     ctx.restore();
   });
 }
-
-/* 运行时：在程序栈左侧显示一支箭头，追踪控制流（DOM 实现） */
-function placeRunCursor() { /* 由 highlightRun 中的 CSS 负责，不需要 canvas 绘制 */ }
 
 /* ============================================================
    程序：一棵卡片树
