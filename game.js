@@ -681,6 +681,15 @@ function beetleStep(b, dt, now) {
   const homeC = padCenter(b.home.x, b.home.y);
   const toHome = Math.hypot(b.x - homeC.x, b.y - homeC.y) / cell;
 
+  /* ---- 正在飞出池塘：straight out, 不转向、不返航 ---- */
+  if (b.leaving) {
+    b.x += b.vx * cell * dt;
+    b.y += b.vy * cell * dt;
+    b.height += b.climb * dt;
+    if (b.height > 1.4) b.climb = 0;          // 飞高一点就平飞出去
+    return;
+  }
+
   /* ---- 决定往哪儿飞 ---- */
   let goal;
   if (b.startled) {
@@ -742,12 +751,13 @@ function beetleStep(b, dt, now) {
   }
 
   /* ---- 该往回飞了 ---- */
-  if (!b.startled && !b.returning && now >= b.landAt) {
+  // 正在飞出池塘的虫不返航 —— 它的任务就是离开
+  if (!b.leaving && !b.startled && !b.returning && now >= b.landAt) {
     b.returning = true;
   }
 
   /* ---- 降落：高度回到水面且正好在睡莲上 ---- */
-  if (!b.startled && b.returning && b.height <= 0.02
+  if (!b.leaving && !b.startled && b.returning && b.height <= 0.02
       && (toHome < FLY.landRadius || toHome < 0.35)
       && now - b.tookOffAt > 600) {
     b.flying = false;
@@ -815,12 +825,23 @@ function beetleLeave(b, now) {
   b.leaveAt = now;
   b.flying = true;
   b.returning = false;
-  // 随机一个方向飞出去
-  const a = Math.random() * Math.PI * 2;
+  // 朝最近的池塘边飞出去 —— 保证几秒内真的飞出画面，
+  // 而不是朝池内兜圈子最后被超时删掉（那样看起来就是突然消失）
+  const cx = padCenter(b.gx, b.gy);
+  const dl = cx.x - ox, dr = ox + COLS * cell - cx.x;
+  const dt2 = cx.y - oy, db = oy + ROWS * cell - cx.y;
+  const minD = Math.min(dl, dr, dt2, db);
+  let a;
+  if (minD === dl)      a = Math.PI + (Math.random() - 0.5) * 0.5;
+  else if (minD === dr) a = (Math.random() - 0.5) * 0.5;
+  else if (minD === dt2) a = -Math.PI / 2 + (Math.random() - 0.5) * 0.5;
+  else                   a = Math.PI / 2 + (Math.random() - 0.5) * 0.5;
   b.angle = a;
-  b.vx = Math.cos(a) * FLY.cruiseSpeed * 1.3;
-  b.vy = Math.sin(a) * FLY.cruiseSpeed * 1.3;
-  b.climb = FLY.climbRate * 0.8;
+  // 飞得比平时快，保证几秒内就飞出画面（否则会看起来像原地消失）
+  const spd = FLY.cruiseSpeed * 2.6;
+  b.vx = Math.cos(a) * spd;
+  b.vy = Math.sin(a) * spd;
+  b.climb = FLY.climbRate * 1.2;
   b.height = Math.max(b.height, 0.35);
   b.wp = null;
   sfxFly();
@@ -879,9 +900,12 @@ function updateBeetles(now) {
     /* ---- 正在飞走的虫：飞出池塘就消失 ---- */
     if (b.leaving) {
       beetleStep(b, dt, now);
-      const out = b.x < -cell || b.x > W + cell || b.y < -cell || b.y > H + cell;
+      // 只要飞出池塘画布就算离开了（稍微放宽一点，避免卡在边缘）
+      const pad = cell * 0.25;
+      const out = b.x < ox - pad || b.x > ox + COLS * cell + pad
+               || b.y < oy - pad || b.y > oy + ROWS * cell + pad;
       if (out) { b.alive = false; updateStats(); }
-      else if (now - b.leaveAt > 4500) { b.alive = false; updateStats(); }
+      else if (now - b.leaveAt > 9000) { b.alive = false; updateStats(); }
       return;
     }
 
