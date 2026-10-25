@@ -487,7 +487,17 @@ function updateBeetles(now) {
       // 等新虫快到时旧虫才起飞 —— 荷叶上不会出现空位。
       const cand = pads[Math.floor(Math.random() * pads.length)];
       const nb = spawnBeetle(now, cand.q, cand.r, cand.target ? cand.color : null);
-      if (nb) { nb.target = cand.target; state.beetles.push(nb); POP.evictPending = cand; }
+      if (nb) {
+        // 目标甲虫的身份要「转交」给新虫：旧的那只飞走时就不再算目标，
+        // 否则目标数量会越换越少，关卡就永远赢不了了。
+        nb.target = !!cand.target;
+        if (cand.target) {
+          cand.target = false;          // 目标身份已经交给新虫
+          nb.home = { q: cand.home.q, r: cand.home.r };
+        }
+        state.beetles.push(nb);
+        POP.evictPending = cand;
+      }
     } else if (!state.beetles.some(b => b.alive && b.arriving)) {
       // 没满，而且没有正在飞入的 —— 放一只进来
       const nb = spawnBeetle(now);
@@ -529,6 +539,22 @@ function updateBeetles(now) {
   });
 
   state.beetles = state.beetles.filter(b => b.alive);
+
+  // 兜底：万一目标甲虫真的丢了（例如被吃掉），用同色补回来，保证关卡可解
+  const liveTargets = state.beetles.filter(b => b.alive && b.target);
+  if (liveTargets.length < 4 && state.level < LEVELS.length) {
+    const used = new Set(liveTargets.map(b => b.color));
+    for (let c = 0; c < 4; c++) {
+      if (used.has(c)) continue;
+      if (state.beetles.some(b => b.alive && b.color === c && !b.target)) continue;
+      const spot = freeCell();
+      if (!spot) break;
+      const b = makeBeetle(spot.q, spot.r, c, now, true);
+      state.beetles.push(b);
+      liveTargets.push(b);
+    }
+  }
+
   updateStats();
 }
 
