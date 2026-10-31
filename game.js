@@ -2,10 +2,9 @@
    Frog Pond — CHM 展项复刻（Iteration 3 规格）
    - 六边形网格：青蛙在 6 个方向之间跳
    - 甲虫落在网格交点上，用 eat 指令吃掉
-   - 指令：hop / chirp / eat / left / right / spin / hatch
+   - 指令：hop / chirp / eat / left / right / spin
    - 控制结构：if-else / repeat（可嵌套）
-   - 程序纵向堆叠，运行时有一支箭头追踪控制流
-   - hatch 孵出新青蛙，几条指令就能让池塘满是青蛙
+   - 程序纵向堆叠，运行时高亮当前卡片
    ============================================================ */
 'use strict';
 
@@ -56,7 +55,6 @@ const BLOCKS = {
   left:  { label: '左转', icon: 'i-left' },
   right: { label: '右转', icon: 'i-right' },
   spin:  { label: '转身', icon: 'i-spin' },
-  hatch: { label: '孵',   icon: 'i-hatch' },
   if:    { label: '如果', icon: 'i-if' },
   repeat:{ label: '重复', icon: 'i-repeat' }
 };
@@ -85,6 +83,7 @@ const state = {
   score: 0,
   eaten: 0,
   targetLeft: 0,
+  eatAnimations: [],
   frogColor: 0,         // 当前在编辑哪种颜色的青蛙
   speed: 1
 };
@@ -110,12 +109,20 @@ const FLY = {
 /* ---------------- 关卡 ---------------- */
 const LEVELS = [
   {
+    name: '自由池塘',
+    free: true,
+    frogs: [{ q: -2, r: 0, dir: 0 }],
+    beetles: [[-1, 0], [0, 0], [1, -1]],
+    holes: [],
+    hint: '点卡片，再按 ▶，让青蛙去吃虫子！'
+  },
+  {
     name: '第一课：吃掉甲虫',
     frogs: [{ q: -2, r: 0, dir: 0 }],
     beetles: [[-1, 0], [0, 0]],
     holes: [],
     par: 4,
-    hint: '甲虫停在荷叶上。\n青蛙走到它那片叶子上，再用「吃」。'
+    hint: '让青蛙面对旁边的甲虫，\n再用「吃」伸出舌头。'
   },
   {
     name: '第二课：水面挡路',
@@ -135,19 +142,19 @@ const LEVELS = [
   },
   {
     name: '第四课：如果',
-    frogs: [{ q: -1, r: 0, dir: 0 }],
-    beetles: [[-1, 0], [0, 0], [1, 0], [2, 0]],
-    holes: [],
-    par: 6,
-    hint: '让青蛙自己判断：\n脚下有虫子就吃掉它。'
-  },
-  {
-    name: '第五课：孵出小青蛙',
     frogs: [{ q: -2, r: 0, dir: 0 }],
     beetles: [[-1, 0], [0, 0], [1, 0], [2, 0]],
     holes: [],
-    par: 3,
-    hint: '「孵」会变出一只新青蛙，\n它们会一起执行这套程序。'
+    par: 6,
+    hint: '让青蛙自己判断：\n前面有虫子就吃掉它。'
+  },
+  {
+    name: '第五课：绕一绕',
+    frogs: [{ q: -1, r: 0, dir: 0 }],
+    beetles: [[0, 0], [-1, 1]],
+    holes: [],
+    par: 6,
+    hint: '吃掉第一只虫子后，\n转一转，面对另一只。'
   }
 ];
 
@@ -192,11 +199,9 @@ function layoutGrid() {
   }
   const spanX = (maxX - minX) + Math.sqrt(3);
   const spanY = (maxY - minY) + 2;
-  hexR = Math.min((W - 48) / spanX, (H - 48) / spanY);
-  ox = W / 2 - (minX + maxX) / 2 * hexR * 0 - hexR * Math.sqrt(3) * (minX + maxX) / 2 / hexR * 0;
-  // x = hexR*sqrt3*(q + r/2) + ox  => 中心对齐
-  ox = W / 2 - hexR * Math.sqrt(3) * (minX + maxX) / 2;
-  oy = H / 2 - hexR * 1.5 * (minY + maxY) / 2;
+  hexR = Math.max(1, Math.min((W - 48) / spanX, (H - 48) / spanY));
+  ox = W / 2 - hexR * (minX + maxX) / 2;
+  oy = H / 2 - hexR * (minY + maxY) / 2;
 }
 
 /* ---------------- 音效 ---------------- */
@@ -224,6 +229,7 @@ const sfxLand  = () => blip(420, .07, 'sine', .025);
 
 /* ---------------- 关卡加载 ---------------- */
 function loadLevel(i) {
+  clearTimeout(winTimer);
   state.level = i;
   const L = LEVELS[i];
   const now = Date.now();
@@ -238,23 +244,25 @@ function loadLevel(i) {
 
   state.beetles = [];
   (L.beetles || []).forEach(([q, r], k) => {
-    state.beetles.push(makeBeetle(q, r, k % BEETLE_COLORS.length, now, true));
+    state.beetles.push(makeBeetle(q, r, k % BEETLE_COLORS.length, now, !L.free));
   });
 
   state.targetLeft = state.beetles.length;
   state.eaten = 0;
   state.score = 0;
+  state.eatAnimations = [];
   state.program = [];
   state.focus = null;
   state.undoStack = [];
   state.running = false;
+  closePicker();
   state.frogColor = 0;
   state.frogs.forEach(f => f.color = 0);
 
   POP.nextSpawnAt = 0;
   POP.nextFlyAt = 0;
   POP.evictPending = null;
-  POP.visitors = L.visitors !== false;
+  POP.visitors = !!L.free;
 
   ops = [];
   renderProgram();
@@ -277,7 +285,7 @@ function frogAt(q, r) {
   return state.frogs.find(f => f.alive && f.q === q && f.r === r) || null;
 }
 function beetleAt(q, r) {
-  return state.beetles.find(b => b.alive && b.q === q && b.r === r) || null;
+  return state.beetles.find(b => b.alive && !b.flying && !b.leaving && !b.arriving && b.q === q && b.r === r) || null;
 }
 
 /* ---------------- 甲虫 ---------------- */
@@ -460,12 +468,16 @@ function spawnBeetle(now, atQ, atR, color) {
 }
 
 function updateBeetles(now) {
+  // 教学关的目标虫留在荷叶上，让孩子有时间观察和尝试。
+  if (!POP.visitors) { state.beetles = state.beetles.filter(b => b.alive); updateStats(); return; }
   if (!POP.nextSpawnAt) POP.nextSpawnAt = now + POP.spawnEvery;
 
   /* 计数口径：只算「停在荷叶上」的虫（不含正在飞入 / 正在离场）。
      这一组任何时候都不允许超过 POP.max。 */
   const onPads = () => state.beetles.filter(b => b.alive && !b.leaving && !b.arriving);
 
+  // 换虫期间旧虫可能被吃掉；不能让失效的引用阻止后续新虫飞入。
+  if (POP.evictPending && (!POP.evictPending.alive || POP.evictPending.leaving)) POP.evictPending = null;
   // 换虫第二步：新虫快落到荷叶上时，旧的那只才起飞离场
   if (POP.evictPending && POP.evictPending.alive && !POP.evictPending.leaving) {
     const old = POP.evictPending;
@@ -540,21 +552,6 @@ function updateBeetles(now) {
 
   state.beetles = state.beetles.filter(b => b.alive);
 
-  // 兜底：万一目标甲虫真的丢了（例如被吃掉），用同色补回来，保证关卡可解
-  const liveTargets = state.beetles.filter(b => b.alive && b.target);
-  if (liveTargets.length < 4 && state.level < LEVELS.length) {
-    const used = new Set(liveTargets.map(b => b.color));
-    for (let c = 0; c < 4; c++) {
-      if (used.has(c)) continue;
-      if (state.beetles.some(b => b.alive && b.color === c && !b.target)) continue;
-      const spot = freeCell();
-      if (!spot) break;
-      const b = makeBeetle(spot.q, spot.r, c, now, true);
-      state.beetles.push(b);
-      liveTargets.push(b);
-    }
-  }
-
   updateStats();
 }
 
@@ -563,8 +560,43 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
   drawWater();
   drawHexPads();
+  drawTongues();
   drawBeetles();
   drawFrogs();
+}
+
+function eatAnimationPoints(animation, now) {
+  const progress = Math.max(0, Math.min(1, (now - animation.at) / 650));
+  const reach = progress < .35 ? progress / .35 : (1 - progress) / .65;
+  const origin = cellCenter(animation.q, animation.r);
+  const target = cellCenter(animation.beetle.q, animation.beetle.r);
+  const angle = dirAngle(animation.dir);
+  const mouth = { x: origin.x + Math.cos(angle) * hexR * .24,
+    y: origin.y - hexR * .22 + Math.sin(angle) * hexR * .24 };
+  const tip = { x: mouth.x + (target.x - mouth.x) * reach,
+    y: mouth.y + (target.y - hexR * .07 - mouth.y) * reach };
+  return { progress, mouth, tip, target };
+}
+
+function drawTongues() {
+  const now = Date.now();
+  state.eatAnimations = state.eatAnimations.filter(animation => now - animation.at < 650);
+  state.eatAnimations.forEach(animation => {
+    const points = eatAnimationPoints(animation, now);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(3, hexR * .12);
+    ctx.strokeStyle = '#e65070';
+    ctx.beginPath();
+    ctx.moveTo(points.mouth.x, points.mouth.y);
+    ctx.lineTo(points.tip.x, points.tip.y);
+    ctx.stroke();
+    ctx.fillStyle = '#ff9cb0';
+    ctx.beginPath();
+    ctx.arc(points.tip.x, points.tip.y, Math.max(2, hexR * .09), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
 }
 
 function drawWater() {
@@ -595,49 +627,92 @@ function hexPath(cx, cy, r) {
   ctx.closePath();
 }
 
-/* 六边形睡莲：一格一片叶子，格线就是青蛙能走的路 */
+/* 荷叶：每格一片，大小/缺口方向由格坐标决定（确定性，不随帧或窗口改变）。
+   半径 ≤ 0.80*hexR，相邻圆心距 1.73*hexR，所以叶与叶之间始终留有水面空隙。 */
+function padHash(q, r, k) {
+  let h = (q * 73856093) ^ (r * 19349663) ^ (k * 83492791);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+function padShape(c) {
+  return {
+    r: hexR * (0.66 + 0.14 * padHash(c.q, c.r, 1)),
+    notch: padHash(c.q, c.r, 2) * Math.PI * 2,
+    tone: padHash(c.q, c.r, 3)
+  };
+}
+
+function leafPath(cx, cy, r, notch) {
+  const gap = 0.2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, r, notch + gap, notch + Math.PI * 2 - gap);
+  ctx.closePath();
+}
+
 function drawHexPads() {
+  // 水面上淡淡的"路线"：连接相邻可走的荷叶，空隙里也看得出方向
+  ctx.strokeStyle = 'rgba(190,255,205,0.16)';
+  ctx.lineWidth = Math.max(2, hexR * .09);
+  ctx.lineCap = 'round';
+  ctx.setLineDash([hexR * .1, hexR * .22]);
+  ctx.beginPath();
+  for (const c of CELLS) {
+    if (holeAt(c.q, c.r)) continue;
+    const p = cellCenter(c.q, c.r);
+    for (const [dq, dr] of [[1, 0], [0, 1], [-1, 1]]) {
+      if (!walkable(c.q + dq, c.r + dr)) continue;
+      const n = cellCenter(c.q + dq, c.r + dr);
+      ctx.moveTo(p.x, p.y); ctx.lineTo(n.x, n.y);
+    }
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineCap = 'butt';
+
   for (const c of CELLS) {
     const p = cellCenter(c.q, c.r);
     if (holeAt(c.q, c.r)) { drawWaterHole(p); continue; }
+    const s = padShape(c);
+    const r = s.r;
 
-    const r = hexR * .96;
-    // 阴影
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    hexPath(p.x + 2, p.y + 5, r);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    leafPath(p.x + r * .06, p.y + r * .12, r, s.notch);
     ctx.fill();
 
-    // 叶面
-    const g = ctx.createRadialGradient(p.x - r * .3, p.y - r * .35, r * .2, p.x, p.y, r);
-    g.addColorStop(0, '#5cba6c');
-    g.addColorStop(1, '#2f7c47');
+    const g = ctx.createRadialGradient(p.x - r * .3, p.y - r * .35, r * .15, p.x, p.y, r);
+    g.addColorStop(0, `hsl(${128 + s.tone * 14}, 48%, ${50 + s.tone * 6}%)`);
+    g.addColorStop(1, `hsl(${140 + s.tone * 10}, 50%, ${27 + s.tone * 5}%)`);
     ctx.fillStyle = g;
-    hexPath(p.x, p.y, r);
+    leafPath(p.x, p.y, r, s.notch);
     ctx.fill();
 
-    // 叶脉
-    ctx.strokeStyle = 'rgba(255,255,255,0.11)';
+    // 叶脉：从中心向外
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.lineWidth = Math.max(1, r * .035);
-    for (let i = 0; i < 6; i++) {
-      const a = dirAngle(i) + Math.PI / 6;
+    for (let i = 0; i < 7; i++) {
+      const a = s.notch + 0.5 + i * (Math.PI * 2 - 1) / 6;
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
-      ctx.lineTo(p.x + Math.cos(a) * r * .9, p.y + Math.sin(a) * r * .9);
+      ctx.lineTo(p.x + Math.cos(a) * r * .85, p.y + Math.sin(a) * r * .85);
       ctx.stroke();
     }
 
-    // 格线（明确标出可走的路径）
-    ctx.strokeStyle = 'rgba(190,255,205,0.30)';
-    ctx.lineWidth = Math.max(1, r * .05);
-    hexPath(p.x, p.y, r * .99);
+    // 亮边，让叶子轮廓清楚
+    ctx.strokeStyle = 'rgba(200,255,215,0.38)';
+    ctx.lineWidth = Math.max(1.5, r * .05);
+    leafPath(p.x, p.y, r * .98, s.notch);
     ctx.stroke();
   }
 }
 
 function drawWaterHole(p) {
-  const r = hexR * .96;
-  ctx.fillStyle = 'rgba(2,18,24,0.62)';
-  hexPath(p.x, p.y, r);
+  const r = hexR * .7;
+  ctx.fillStyle = 'rgba(2,18,24,0.45)';
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
   ctx.fill();
   const t = Date.now() / 1000;
   for (let i = 0; i < 2; i++) {
@@ -653,14 +728,23 @@ function drawWaterHole(p) {
 /* ---------------- 绘制：甲虫 ---------------- */
 function drawBeetles() {
   const now = Date.now();
-  state.beetles.forEach(b => {
-    if (!b.alive) return;
+  const caught = state.eatAnimations.map(animation => ({ ...animation.beetle, animation }));
+  [...state.beetles, ...caught].forEach(b => {
+    if (!b.alive && !b.animation) return;
     const home = cellCenter(b.q, b.r);
-    const p = b.flying
+    let p = b.flying
       ? { x: b.x, y: b.y - b.height * hexR }
       : { x: home.x, y: home.y - hexR * .07 };
-    const bob = b.flying ? 0 : Math.sin(now / 500 + b.phase) * hexR * .03;
-    const r = hexR * .21;
+    let scale = 1;
+    if (b.animation) {
+      const points = eatAnimationPoints(b.animation, now);
+      if (points.progress >= .35) {
+        p = points.tip;
+        scale = Math.max(.1, (1 - points.progress) / .65);
+      }
+    }
+    const bob = b.flying || b.animation ? 0 : Math.sin(now / 500 + b.phase) * hexR * .03;
+    const r = hexR * .21 * scale;
     const bc = BEETLE_COLORS[b.color % BEETLE_COLORS.length];
 
     if (b.flying) {
@@ -747,13 +831,22 @@ function drawFrogs() {
   const now = Date.now();
   state.frogs.forEach(f => {
     if (!f.alive) return;
-    const c = cellCenter(f.q, f.r);
+    let c = cellCenter(f.q, f.r);
+    let jump = 0;
+    if (f.hopFrom) {
+      const t = Math.min(1, (now - f.hopFrom.at) / 340);
+      if (t < 1) {
+        const from = cellCenter(f.hopFrom.q, f.hopFrom.r);
+        c = { x: from.x + (c.x - from.x) * t, y: from.y + (c.y - from.y) * t };
+        jump = Math.sin(Math.PI * t) * hexR * .45;
+      } else f.hopFrom = null;
+    }
     const r = hexR * .34;
     const col = FROG_COLORS[f.color % FROG_COLORS.length];
     const breathe = 1 + Math.sin(now / 420 + f.q) * .03;
 
     ctx.save();
-    ctx.translate(c.x, c.y - hexR * .22);
+    ctx.translate(c.x, c.y - hexR * .22 - jump);
 
     // 影子
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -858,6 +951,20 @@ function drawFrogs() {
     ctx.restore();
 
     ctx.restore();
+    if (f.actionUntil > now && f.actionLabel) {
+      ctx.save();
+      ctx.font = `bold ${Math.max(12, hexR * .26)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const bx = c.x, by = c.y - hexR * 1.05 - jump;
+      ctx.fillStyle = '#fff7d2';
+      ctx.beginPath();
+      ctx.ellipse(bx, by, hexR * .36, hexR * .24, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#174a37';
+      ctx.fillText(f.actionLabel, bx, by);
+      ctx.restore();
+    }
   });
 }
 
@@ -875,6 +982,7 @@ function newCard(key, extra) {
 }
 const isSlot = c => c.key === 'if' || c.key === 'repeat';
 const branchList = (c, br) => (c.key === 'if' && br === 'else') ? c.elseChildren : c.children;
+const focusList = f => f.parent ? branchList(f.parent, f.branch) : state.program;
 
 function findCard(id, list, parent, branch) {
   list = list || state.program;
@@ -902,15 +1010,11 @@ function addBlock(key) {
   snapshot();
   const card = newCard(key, key === 'if' ? { cond: 'bug' } : key === 'repeat' ? { count: 3 } : null);
   const f = state.focus;
-  if (f) {
-    const list = branchList(f.parent, f.branch);
-    list.splice(f.index, 0, card);
-    state.focus = isSlot(card) ? { parent: card, branch: 'then', index: 0 }
-                              : { parent: f.parent, branch: f.branch, index: f.index + 1 };
-  } else {
-    state.program.push(card);
-    if (isSlot(card)) state.focus = { parent: card, branch: 'then', index: 0 };
-  }
+  const list = f ? focusList(f) : state.program;
+  const index = f ? Math.min(f.index, list.length) : list.length;
+  list.splice(index, 0, card);
+  state.focus = isSlot(card) ? { parent: card, branch: 'then', index: 0 }
+    : { parent: f ? f.parent : null, branch: f ? f.branch : 'then', index: index + 1 };
   renderProgram();
   blip(600, .05, 'sine', .03);
 }
@@ -920,7 +1024,7 @@ function removeCard(id) {
   const loc = findCard(id);
   if (!loc) return;
   loc.list.splice(loc.index, 1);
-  if (state.focus && !findCard(state.focus.parent.id)) state.focus = null;
+  state.focus = null;
   renderProgram();
 }
 
@@ -935,9 +1039,9 @@ function undoBlock() {
 
 function clearProgram() {
   if (state.running) return;
+  snapshot();
   state.program = [];
   state.focus = null;
-  state.undoStack = [];
   renderProgram();
 }
 
@@ -948,7 +1052,7 @@ function countCards(list) {
     n++;
     if (isSlot(b)) {
       n += countCards(b.children);
-      if (b.key === 'if') n += countCards(b.elseChildren);
+      if (b.key === 'if' && b.hasElse) n += countCards(b.elseChildren);
     }
   });
   return n;
@@ -956,12 +1060,18 @@ function countCards(list) {
 
 /* ---------------- 渲染程序栈 ---------------- */
 function renderProgram() {
+  // 仅在内容变更时丢弃旧指令；选择插入位置不会打断单步。
+  if (!state.running && compiledSource !== JSON.stringify(state.program)) {
+    ops = [];
+    state.frogs.forEach(f => { f.pc = 0; f.loops = []; });
+  }
   programEl.innerHTML = '';
   if (!state.program.length) {
     programEl.innerHTML = '<div id="progEmpty">' +
-      '<svg class="ic sm"><use href="#i-tap"/></svg><span>点下面的卡片，把它排进程序</span>' +
-      '<svg class="ic sm"><use href="#i-run"/></svg><span>再按这个跑起来</span></div>';
+      '<svg class="ic sm"><use href="#i-tap"/></svg><span>点卡片，再按 ▶</span></div>';
+    programEl._drop = { parent: null, branch: 'then', index: 0 };
   } else {
+    programEl._drop = { parent: null, branch: 'then', index: state.program.length };
     const start = document.createElement('div');
     start.className = 'startCap';
     start.innerHTML = '<span class="stxt">开始</span>' +
@@ -970,7 +1080,7 @@ function renderProgram() {
 
     const strip = document.createElement('div');
     strip.className = 'stack';
-    state.program.forEach(b => strip.appendChild(renderCard(b, 0)));
+    renderStack(strip, state.program, null, 'then', 0);
     programEl.appendChild(strip);
 
     const end = document.createElement('div');
@@ -983,6 +1093,123 @@ function renderProgram() {
   renderPicker();
 }
 
+function renderStack(el, cards, parent, branch, depth) {
+  for (let i = 0; i <= cards.length; i++) {
+    const point = document.createElement('div');
+    point.className = 'insertPoint';
+    if (state.focus && state.focus.parent === parent && state.focus.branch === branch && state.focus.index === i) {
+      point.classList.add('selected');
+    }
+    point.addEventListener('click', ev => {
+      ev.stopPropagation();
+      if (state.running || suppressDragClick()) return;
+      state.focus = { parent, branch, index: i };
+      renderProgram();
+    });
+    point._drop = { parent, branch, index: i };
+    el.appendChild(point);
+    if (i < cards.length) {
+      const item = renderCard(cards[i], depth);
+      item._dropBefore = { parent, branch, index: i };
+      item._dropAfter = { parent, branch, index: i + 1 };
+      el.appendChild(item);
+    }
+  }
+}
+
+// 使用 Pointer Events，鼠标和 iPad 都能拖动；轻点仍然是原来的添加操作。
+let dragging = null;
+let ignoreClickUntil = 0;
+function suppressDragClick() { return Date.now() < ignoreClickUntil; }
+function beginDrag(ev, source) {
+  if (state.running || ev.button !== 0 || ev.target.closest('.del, .cond, .num, .elseTgl')) return;
+  if (dragging) return;
+  dragging = { source, x: ev.clientX, y: ev.clientY, pointerId: ev.pointerId, active: false };
+}
+function dragTarget(x, y) {
+  const hit = document.elementFromPoint(x, y);
+  if (!hit) return null;
+  const point = hit.closest('.insertPoint');
+  if (point) return { element: point, drop: point._drop };
+  const card = hit.closest('.card, .slotHead');
+  const item = card && (card.classList.contains('slotHead') ? card.parentElement : card);
+  if (item && item._dropBefore) {
+    const rect = item.getBoundingClientRect();
+    return { element: item, drop: y < rect.top + rect.height / 2 ? item._dropBefore : item._dropAfter };
+  }
+  const element = hit.closest('.socket, #program');
+  return element ? { element, drop: element._drop } : null;
+}
+function dragMove(ev) {
+  if (!dragging || ev.pointerId !== dragging.pointerId) return;
+  if (!dragging.active && Math.hypot(ev.clientX - dragging.x, ev.clientY - dragging.y) < 10) return;
+  if (!dragging.active && ev.pointerType === 'touch' && dragging.source.id &&
+      programEl.scrollHeight > programEl.clientHeight + 2 &&
+      Math.abs(ev.clientY - dragging.y) > Math.abs(ev.clientX - dragging.x)) {
+    const scroll = programEl;
+    const previous = dragging.y;
+    dragging.y = ev.clientY;
+    dragging.x = ev.clientX;
+    scroll.scrollTop -= ev.clientY - previous;
+    dragging.scrolling = true;
+    ev.preventDefault();
+    return;
+  }
+  if (dragging.scrolling) {
+    programEl.scrollTop -= ev.clientY - dragging.y;
+    dragging.y = ev.clientY;
+    ev.preventDefault();
+    return;
+  }
+  if (!dragging.active) {
+    dragging.active = true;
+    const ghost = document.createElement('div');
+    ghost.className = 'dragGhost';
+    const loc = dragging.source.id && findCard(dragging.source.id);
+    ghost.textContent = BLOCKS[dragging.source.key || (loc && loc.list[loc.index].key)].label;
+    document.body.appendChild(ghost);
+    dragging.ghost = ghost;
+  }
+  ev.preventDefault();
+  dragging.ghost.style.left = ev.clientX + 'px';
+  dragging.ghost.style.top = ev.clientY + 'px';
+  document.querySelectorAll('.dropTarget').forEach(e => e.classList.remove('dropTarget'));
+  const target = dragTarget(ev.clientX, ev.clientY);
+  if (target && target.drop) target.element.classList.add('dropTarget');
+}
+function endDrag(ev) {
+  if (!dragging || ev.pointerId !== dragging.pointerId) return;
+  const d = dragging;
+  dragging = null;
+  document.querySelectorAll('.dropTarget').forEach(e => e.classList.remove('dropTarget'));
+  if (d.scrolling) { ignoreClickUntil = Date.now() + 400; return; }
+  if (!d.active) return;
+  ignoreClickUntil = Date.now() + 400;
+  d.ghost.remove();
+  if (ev.type === 'pointercancel') return;
+  const target = dragTarget(ev.clientX, ev.clientY);
+  const drop = target && target.drop;
+  if (!drop) return;
+  if (d.source.key) {
+    state.focus = drop;
+    addBlock(d.source.key);
+    return;
+  }
+  const loc = findCard(d.source.id);
+  if (!loc) return;
+  const card = loc.list[loc.index];
+  // 不能把容器放进自己或自己的后代里。
+  if (drop.parent && (drop.parent === card || (isSlot(card) && findCard(drop.parent.id, [card])))) return;
+  snapshot();
+  const dest = focusList(drop);
+  let index = drop.index;
+  if (dest === loc.list && loc.index < index) index--;
+  loc.list.splice(loc.index, 1);
+  dest.splice(index, 0, card);
+  state.focus = { parent: drop.parent, branch: drop.branch, index: index + 1 };
+  renderProgram();
+}
+
 function renderCard(card, depth) {
   if (isSlot(card)) return renderSlotCard(card, depth);
 
@@ -990,15 +1217,16 @@ function renderCard(card, depth) {
   el.className = 'card';
   el.dataset.k = card.key;
   el.dataset.id = card.id;
+  el.addEventListener('pointerdown', ev => beginDrag(ev, { id: card.id }));
   el.innerHTML =
     '<svg class="ic"><use href="#' + BLOCKS[card.key].icon + '"/></svg>' +
     '<span class="lbl">' + BLOCKS[card.key].label + '</span>' +
     '<span class="del">×</span>';
   el.addEventListener('click', ev => {
-    if (state.running) return;
+    if (state.running || suppressDragClick()) return;
     if (ev.target.classList.contains('del')) { snapshot(); removeCard(card.id); return; }
     const loc = findCard(card.id);
-    if (loc) state.focus = loc.parent ? { parent: loc.parent, branch: loc.branch, index: loc.index } : null;
+    if (loc) state.focus = { parent: loc.parent, branch: loc.branch, index: loc.index + 1 };
     renderProgram();
   });
   return el;
@@ -1012,6 +1240,7 @@ function renderSlotCard(card, depth) {
 
   const head = document.createElement('div');
   head.className = 'slotHead';
+  head.addEventListener('pointerdown', ev => beginDrag(ev, { id: card.id }));
 
   if (card.key === 'if') {
     const c = CONDITIONS[card.cond] || CONDITIONS.bug;
@@ -1028,6 +1257,7 @@ function renderSlotCard(card, depth) {
       if (state.running) return;
       ev.stopPropagation(); snapshot();
       card.hasElse = !card.hasElse;
+      if (!card.hasElse) state.focus = null;
       renderProgram();
     });
   } else {
@@ -1063,17 +1293,19 @@ function renderSocket(card, branch, depth) {
   const inner = document.createElement('div');
   inner.className = 'stack';
   const kids = branchList(card, branch) || [];
-  if (kids.length) kids.forEach(b => inner.appendChild(renderCard(b, depth + 1)));
-  else {
+  if (!kids.length) {
     const hint = document.createElement('div');
     hint.className = 'socketHint';
     hint.innerHTML = '<span>把卡片塞进来</span>';
     body.appendChild(hint);
   }
+  renderStack(inner, kids, card, branch, depth + 1);
+  body._drop = { parent: card, branch, index: kids.length };
   body.appendChild(inner);
   body.addEventListener('click', ev => {
-    if (state.running) return;
-    if (ev.target.closest('.card') || ev.target.closest('.slot')) return;
+    if (state.running || suppressDragClick()) return;
+    const nested = ev.target.closest('.card, .slot');
+    if (nested && nested !== body.closest('.slot')) return;
     state.focus = { parent: card, branch, index: (branchList(card, branch) || []).length };
     renderProgram();
   });
@@ -1101,7 +1333,7 @@ function renderPicker() {
       const b = document.createElement('button');
       b.className = 'pkItem';
       b.innerHTML = '<svg class="ic"><use href="#' + c.icon + '"/></svg><span>' + c.label + '</span>';
-      b.addEventListener('click', () => { pickerState.card.cond = k; closePicker(); });
+      b.addEventListener('click', () => { pickerState.card.cond = k; closePicker(); renderProgram(); });
       items.appendChild(b);
     });
   } else {
@@ -1110,7 +1342,7 @@ function renderPicker() {
       const b = document.createElement('button');
       b.className = 'pkItem pkNum';
       b.innerHTML = '<span>' + n + '</span>';
-      b.addEventListener('click', () => { pickerState.card.count = n; closePicker(); });
+      b.addEventListener('click', () => { pickerState.card.count = n; closePicker(); renderProgram(); });
       items.appendChild(b);
     });
   }
@@ -1119,7 +1351,7 @@ function renderPicker() {
 /* ============================================================
    编译 + 执行
    卡片树 -> 扁平 ops。每只青蛙有自己的 pc / 循环栈，
-   所有青蛙按同一套 ops 同步推进（hatch 出来的新青蛙从 0 开始）。
+   青蛙按编译后的 ops 前进。
    ============================================================ */
 
 function compileSeq(cards, list) {
@@ -1131,7 +1363,7 @@ function compileSeq(cards, list) {
       const jmpIdx = list.length;
       list.push({ t: 'jmp', target: 0, cardId: card.id });
       const elseStart = list.length;
-      compileSeq(card.elseChildren || [], list);
+      if (card.hasElse) compileSeq(card.elseChildren || [], list);
       list[testIdx].elseTarget = elseStart;
       list[jmpIdx].target = list.length;
     } else if (card.key === 'repeat') {
@@ -1146,7 +1378,9 @@ function compileSeq(cards, list) {
 }
 
 let ops = [];
+let compiledSource = '';
 function compileProgram() {
+  compiledSource = JSON.stringify(state.program);
   ops = [];
   compileSeq(state.program, ops);
   return ops;
@@ -1195,40 +1429,32 @@ function execOpFor(f, op) {
 
 /* 一条指令对一只青蛙做了什么 */
 function doAction(f, key) {
+  f.actionLabel = BLOCKS[key] ? BLOCKS[key].label : '';
+  f.actionUntil = Date.now() + 850;
   switch (key) {
     case 'hop': {
       const a = aheadOf(f);
-      if (!walkable(a.q, a.r)) { sfxError(); return; }
+      if (!walkable(a.q, a.r)) { toast('这里是水，转个弯试试'); sfxError(); return; }
+      f.hopFrom = { q: f.q, r: f.r, at: Date.now() };
       f.q = a.q; f.r = a.r;
       sfxHop();
       break;
     }
-    case 'left':  f.dir = (f.dir + 5) % NDIR; sfxTurn(); break;
-    case 'right': f.dir = (f.dir + 1) % NDIR; sfxTurn(); break;
+    case 'left':  f.dir = (f.dir + 1) % NDIR; sfxTurn(); break;
+    case 'right': f.dir = (f.dir + 5) % NDIR; sfxTurn(); break;
     case 'spin':  f.dir = (f.dir + 3) % NDIR; sfxTurn(); break;
     case 'chirp': sfxChirp(); break;
     case 'eat': {
-      // 甲虫落在荷叶上 —— 青蛙站到那片叶子上就能吃掉它
-      const b = beetleAt(f.q, f.r);
-      if (!b) { sfxError(); return; }
+      const ahead = aheadOf(f);
+      const b = beetleAt(ahead.q, ahead.r);
+      if (!b) { toast('前面没有虫子，转个方向试试'); sfxError(); return; }
+      state.eatAnimations.push({ q: f.q, r: f.r, dir: f.dir, beetle: b, at: Date.now() });
       b.alive = false;
       state.eaten++;
       state.score += 10;
+      toast('好棒！吃到虫子啦');
       updateStats();
       sfxEat();
-      break;
-    }
-    case 'hatch': {
-      if (state.frogs.filter(x => x.alive).length >= 12) return;
-      const a = aheadOf(f);
-      if (!walkable(a.q, a.r) || frogAt(a.q, a.r)) return;
-      state.frogs.push({
-        q: a.q, r: a.r, dir: f.dir, color: f.color, alive: true,
-        x: 0, y: 0, hop: 0, hopFrom: null,
-        pc: f.pc, loops: []
-      });
-      updateStats();
-      sfxHatch();
       break;
     }
   }
@@ -1236,6 +1462,7 @@ function doAction(f, key) {
 
 /* ---------------- 运行循环 ---------------- */
 let runTimer = null;
+let winTimer = null;
 let ruleGuard = 0;
 
 function runProgram() {
@@ -1249,7 +1476,8 @@ function runProgram() {
   state.frogs.forEach(f => { f.pc = 0; f.loops = []; });
   if (!state.frogs.length) spawnStartFrog();
   $('#btnRun').querySelector('.nm').textContent = '停止';
-  tickRun();
+  highlightRun(currentOpCardId());
+  runTimer = setTimeout(tickRun, 300);
 }
 
 function stopProgram() {
@@ -1290,24 +1518,23 @@ function tickRun() {
   const busy = live.filter(f => f.pc < ops.length);
   if (!busy.length) {
     stopProgram();
-    setTimeout(checkWin, 250);
+    checkWin();
     return;
   }
 
-  let acted = false;
+  const activeId = currentOpCardId();
   busy.forEach(f => {
     if (f.pc >= ops.length) return;
     const op = ops[f.pc];
     const r = execOpFor(f, op);
     if (r !== 'jump') f.pc++;
-    acted = true;
   });
 
   draw();
-  highlightRun(currentOpCardId());
+  highlightRun(activeId);
 
   if (++ruleGuard > 3000) { stopProgram(); toast('跑太多步了，停下来休息一下'); return; }
-  runTimer = setTimeout(tickRun, 520 / state.speed);
+  runTimer = setTimeout(tickRun, 850 / state.speed);
 }
 
 function stepOnce() {
@@ -1316,13 +1543,15 @@ function stepOnce() {
   if (!state.frogs.length) spawnStartFrog();
   const live = state.frogs.filter(f => f.alive && f.pc < ops.length);
   if (!live.length) { toast('程序已经跑完了'); return; }
+  const activeId = currentOpCardId();
   live.forEach(f => {
     const op = ops[f.pc];
     const r = execOpFor(f, op);
     if (r !== 'jump') f.pc++;
   });
   draw();
-  highlightRun(currentOpCardId());
+  highlightRun(activeId);
+  if (state.frogs.every(f => f.pc >= ops.length)) checkWin();
 }
 
 function spawnStartFrog() {
@@ -1337,28 +1566,33 @@ function spawnStartFrog() {
 /* ---------------- 过关 ---------------- */
 function checkWin() {
   const left = state.beetles.filter(b => b.target && b.alive).length;
-  const par = LEVELS[state.level].par || 8;
-  if (state.targetLeft > 0 && left === 0) {
-    const used = countCards();
-    const perfect = used <= par;
-    $('#ovTitle').textContent = perfect ? '完美！' : '过关！';
-    $('#ovBody').textContent = perfect
-      ? `你用 ${used} 张卡片吃掉了全部甲虫，非常高效。`
-      : `你用 ${used} 张卡片吃掉了全部甲虫，试试 ${par} 张以内？`;
-    setOverlayIcon('i-trophy');
-    const next = state.level + 1 < LEVELS.length;
-    showOverlay(next ? '下一课' : '再玩一次', () => {
-      hideOverlay();
-      if (next) loadLevel(state.level + 1); else loadLevel(0);
-    });
+  if (!LEVELS[state.level].free && state.targetLeft > 0 && left === 0) {
+    state.targetLeft = 0;
+    const delay = Math.max(0, ...state.eatAnimations.map(animation => 650 - (Date.now() - animation.at)));
+    winTimer = setTimeout(showWin, delay);
   }
 }
 
+function showWin() {
+  const used = countCards();
+  const perfect = used <= (LEVELS[state.level].par || 8);
+  $('#ovTitle').textContent = '太棒啦！';
+  $('#ovBody').textContent = perfect
+    ? '青蛙把虫子都吃到了！\n你真会想办法。'
+    : '青蛙把虫子都吃到了！\n一起去下一个池塘吧。';
+  setOverlayIcon('i-trophy');
+  const next = state.level + 1 < LEVELS.length;
+  showOverlay(next ? '下一关' : '回池塘', () => {
+    hideOverlay();
+    loadLevel(next ? state.level + 1 : 0);
+  });
+}
+
 function updateStats() {
-  const left = state.beetles.filter(b => b.alive && b.target).length;
-  const be = $('#statBeetles'); if (be) be.textContent = left;
-  const lv = $('#statLevel'); if (lv) lv.textContent = state.level + 1;
-  const sc = $('#statScore'); if (sc) sc.textContent = state.score;
+  const left = state.beetles.filter(b => b.alive && (LEVELS[state.level].free ? !b.leaving : b.target)).length;
+  const be = $('#statBeetles'); if (be && be.textContent !== String(left)) be.textContent = left;
+  const mode = $('#modeSelect'); if (mode && mode.value !== String(state.level)) mode.value = String(state.level);
+  const sc = $('#statScore'); if (sc && sc.textContent !== String(state.score)) sc.textContent = state.score;
 }
 
 /* ---------------- 覆盖层 / 提示 ---------------- */
@@ -1383,11 +1617,20 @@ function toast(msg) {
 
 /* ---------------- 交互 ---------------- */
 function bindUI() {
+  window.addEventListener('pointermove', dragMove, { passive: false });
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+  $('#modeSelect').addEventListener('change', ev => {
+    stopProgram();
+    hideOverlay();
+    loadLevel(Number(ev.target.value));
+  });
   document.querySelectorAll('.pal[data-block]').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (state.running) return;
+      if (state.running || suppressDragClick()) return;
       addBlock(btn.dataset.block);
     });
+    btn.addEventListener('pointerdown', ev => beginDrag(ev, { key: btn.dataset.block }));
   });
 
   $('#btnRun').addEventListener('click', runProgram);
@@ -1423,6 +1666,7 @@ function bindUI() {
     const dq = c.q - f.q, dr = c.r - f.r;
     const di = DIRS.findIndex(d => d.dq === dq && d.dr === dr);
     if (di < 0) return;
+    f.hopFrom = { q: f.q, r: f.r, at: Date.now() };
     f.dir = di; f.q = c.q; f.r = c.r;
     sfxHop(); draw();
   });
@@ -1446,11 +1690,10 @@ function showHelp() {
   $('#ovTitle').textContent = '怎么玩';
   setOverlayIcon('i-frog');
   $('#ovBody').textContent =
-    '① 点下面的卡片，把命令排进程序。\n' +
-    '② 按 ▶ 让它跑起来。\n' +
-    '③ 让青蛙走到甲虫面前，用「吃」吃掉它。\n\n' +
-    '「如果」和「重复」可以把别的卡片塞进凹槽里。\n' +
-    '试试「孵」——它会变出一只新青蛙，跟着一起做！';
+    '① 点卡片，排好青蛙的动作。\n' +
+    '② 按 ▶，看青蛙动起来。\n' +
+    '③ 面对旁边的虫子，再按「吃」伸出舌头。\n\n' +
+    '卡片可以拖动。点池塘里相邻的荷叶，也可以让青蛙跳过去。';
   showOverlay('知道了', hideOverlay);
 }
 
@@ -1459,13 +1702,9 @@ function boot() {
   resize();
   bindUI();
   loadLevel(0);
+  toast('点卡片，再按 ▶');
 
-  const L = LEVELS[0];
-  $('#ovTitle').textContent = L.name;
-  $('#ovBody').textContent = L.hint || '';
-  setOverlayIcon('i-frog');
-  if (location.hash === '#skip') hideOverlay();
-  else showOverlay('开始', hideOverlay);
+  hideOverlay();
 
   setInterval(() => {
     updateBeetles(Date.now());

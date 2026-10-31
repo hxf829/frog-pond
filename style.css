@@ -70,7 +70,8 @@ body {
 .mini:active { background:#28616a; }
 
 #progWrap { background:#0a2227; border:1px solid #1c464b; border-radius:12px; padding:7px; }
-#program { max-height:27vh; overflow-y:auto; overflow-x:hidden; padding:2px; }
+#program { max-height:27vh; overflow-y:auto; overflow-x:hidden; padding:2px 18px 2px 2px;
+  overscroll-behavior:contain; touch-action:pan-y; }
 
 #progEmpty { display:flex; align-items:center; gap:6px; font-size:12px; opacity:.5;
   white-space:nowrap; padding:10px 4px; }
@@ -201,6 +202,25 @@ body {
 .pkItem:active { transform:scale(.94); }
 #pickerCancel { display:none; }
 
+/* 大按钮、清晰的插入线和始终可见的运行按钮 */
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+.modePicker select { max-width:105px; min-height:42px; color:#eafff5; background:#164146;
+  border:1px solid #4a8e83; border-radius:11px; padding:4px; font-size:14px; }
+.mini { min-width:40px; min-height:40px; justify-content:center; }
+.playControls { display:flex; gap:6px; margin-top:6px; }
+.playControls .pal { flex:1; min-height:46px; flex-direction:row; justify-content:center; gap:8px; }
+.playControls .pal .nm { display:inline; font-size:15px; font-weight:700; }
+#palette { flex-wrap:wrap; overflow:visible; }
+.pal[data-block], .card, .slotHead { touch-action:none; }
+.insertPoint { height:12px; flex:none; border-radius:6px; background:transparent; }
+.insertPoint.selected { background:#ffe18a; height:8px; }
+.insertPoint.dropTarget, .socket.dropTarget { background:#d5f6bd; outline:3px solid #ffe18a; }
+.card.dropTarget, .slot.dropTarget, #program.dropTarget { outline:3px solid #ffe18a; }
+.dragGhost { position:fixed; z-index:100; pointer-events:none; transform:translate(-50%,-50%);
+  border-radius:12px; padding:10px 20px; background:#ffe18a; color:#163a2c; font-weight:800;
+  box-shadow:0 5px 12px #0008; }
+.card.active::before, .slot.active::before { content:'▶'; position:absolute; right:4px; top:50%;
+  transform:translateY(-50%); color:#ffe18a; font-size:20px; text-shadow:0 1px 3px #000; }
 @media (max-width:760px) {
   .pal { min-width:56px; }
   .pal .ic { width:26px; height:26px; font-size:26px; }
@@ -208,4 +228,42 @@ body {
   .title h1 { font-size:14px; }
   .title p { display:none; }
   #program { max-height:23vh; }
+}
+/* 选择器浮在面板上，不改变池塘和程序区的大小。 */
+#panel { position:relative; }
+#picker:not(.hidden) { position:absolute; z-index:2; left:8px; right:8px; bottom:62px;
+  max-height:55%; overflow-y:auto; box-shadow:0 4px 16px #0008; }
+#pickerCancel { display:block; margin:8px auto 0; padding:8px 16px; border:0;
+  border-radius:9px; background:#28616a; color:#eafff5; }
+
+/* iPad 和桌面：编辑区固定在左边，只有程序栈滚动。 */
+@media (min-width:600px) {
+  #app { display:grid; grid-template-columns:clamp(260px, 32vw, 360px) minmax(0, 1fr);
+    grid-template-rows:auto minmax(0, 1fr); }
+  #topbar { grid-column:1 / -1; }
+  #stage { grid-column:2; grid-row:2; min-width:0; min-height:0; }
+  #panel { grid-column:1; grid-row:2; position:relative; min-width:0; min-height:0;
+    display:flex; flex-direction:column; overflow:hidden; border-top:0;
+    border-right:1px solid #1d4b50; padding:8px 8px calc(env(safe-area-inset-bottom) + 8px); }
+  #progWrap { flex:1 1 0; min-height:0; display:flex; flex-direction:column; }
+  #progHead { flex-wrap:wrap; flex:none; }
+  .headBtns { width:100%; justify-content:space-between; margin-left:0; }
+  #program { flex:1 1 0; min-height:0; max-height:none; }
+  #palette { flex:none; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); }
+  .pal[data-block] { min-width:0; }
+  .playControls { flex:none; }
+}
+/* 窄屏保留上下排列，并固定编辑区高度，避免挤压池塘。 */
+@media (max-width:599px) {
+  #panel { flex:0 0 50dvh; min-height:0; display:flex; flex-direction:column; }
+  #progWrap { flex:1 1 0; min-height:0; display:flex; flex-direction:column; }
+  #program { flex:1 1 0; min-height:0; max-height:none; }
+  #palette, .playControls, #picker { flex:none; }
+}
+@media (max-height:600px) and (min-width:600px) {
+  #progHead > .ic, #progCount { display:none; }
+  .mini { min-width:36px; min-height:36px; }
+  #palette { margin-top:4px; }
+  .pal[data-block] { padding:3px 5px; min-height:43px; }
+  .pal[data-block] .ic { width:25px; height:25px; }
 }

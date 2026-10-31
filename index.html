@@ -212,7 +212,7 @@
       <div class="stat" title="还剩几只甲虫"><svg class="ic"><use href="#i-bug"/></svg><b id="statBeetles">0</b></div>
       <div class="stat" title="得分"><svg class="ic"><use href="#i-score"/></svg><b id="statScore">0</b></div>
       <div class="stat" title="卡片数"><svg class="ic"><use href="#i-blocks"/></svg><b id="statMoves">0</b></div>
-      <div class="stat" title="第几课"><svg class="ic"><use href="#i-frog"/></svg><b id="statLevel">1</b></div>
+      <label class="modePicker"><span class="sr-only">选择玩法</span><select id="modeSelect" aria-label="选择玩法"><option value="0">自由池塘</option><option value="1">挑战 1</option><option value="2">挑战 2</option><option value="3">挑战 3</option><option value="4">挑战 4</option><option value="5">挑战 5</option></select></label>
     </div>
   </header>
 
@@ -252,9 +252,10 @@
       <button class="pal" data-block="left"><svg class="ic"><use href="#i-left"/></svg><span class="nm">左转</span></button>
       <button class="pal" data-block="right"><svg class="ic"><use href="#i-right"/></svg><span class="nm">右转</span></button>
       <button class="pal" data-block="spin"><svg class="ic"><use href="#i-spin"/></svg><span class="nm">转身</span></button>
-      <button class="pal" data-block="hatch"><svg class="ic"><use href="#i-hatch"/></svg><span class="nm">孵</span></button>
       <button class="pal" data-block="if"><svg class="ic"><use href="#i-if"/></svg><span class="nm">如果</span></button>
       <button class="pal" data-block="repeat"><svg class="ic"><use href="#i-repeat"/></svg><span class="nm">重复</span></button>
+    </div>
+    <div class="playControls">
       <button id="btnRun" class="pal run"><svg class="ic"><use href="#i-run"/></svg><span class="nm">运行</span></button>
       <button id="btnStep" class="pal step"><svg class="ic"><use href="#i-step"/></svg><span class="nm">单步</span></button>
     </div>
@@ -268,6 +269,6 @@
 </div>
 
 <script src="game.js"></script>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}</script>
+<script>if("serviceWorker" in navigator){let controlled=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(controlled)location.reload();else controlled=true;});navigator.serviceWorker.register('sw.js').catch(()=>{});}</script>
 </body>
 </html>
