@@ -10,4 +10,4 @@ echo "  iPad 访问: http://$IP:$PORT"
 echo "  （iPad 需与电脑连同一个 Wi-Fi）"
 echo "===================================="
 echo "关闭此窗口即停止服务器。"
-python3 -m http.server $PORT --bind 0.0.0.0
+python3 server.py "$PORT"

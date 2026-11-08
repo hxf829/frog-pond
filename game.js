@@ -22,16 +22,95 @@ const DIRS = [
 const NDIR = 6;
 const dirAngle = i => -Math.PI / 3 * i;
 
-/* 池塘范围：半径 3 的六边形（37 格） */
-const POND_R = 3;
+const LEAVES = [
+  { q: -2, r: .2, radius: 3.55, notch: 4.5, tone: .4 },
+  { q: 1.8, r: -.2, radius: 3.35, notch: 5.8, tone: .6 },
+  { q: 2.2, r: -3.8, radius: 2.90, notch: 4.5, tone: .3 },
+  { q: -2.6, r: 3.7, radius: 2.75, notch: 1.5, tone: .5 },
+  { q: -1.25, r: -3.15, radius: 2.08, notch: 2.9, tone: .25 },
+  { q: 2.05, r: 2.55, radius: 1.85, notch: .4, tone: .7 },
+  { q: -4.9, r: 2.9, radius: 1.38, notch: 2.5, tone: .3 },
+  { q: 4.25, r: -2.8, radius: 1.35, notch: 5.5, tone: .55 },
+  { q: -3.2, r: 6.05, radius: .95, notch: 1.6, tone: .45 }
+];
+
+const LEAF_NOTCH = .2;
+const LEAF_TIP = .68;
+const LEAF_MAX_SCALE = 1.09;
+
+function leafEdgeScale(leaf, angle) {
+  const phase = leaf.tone * 9 + leaf.q * .4 + leaf.r * .2;
+  return 1 + .05 * Math.cos(2 * angle + phase) + .023 * Math.sin(3 * angle + phase * .7)
+    + .014 * Math.sin(5 * angle + phase * 1.3);
+}
+
+const LEAF_OUTLINES = new Map(LEAVES.map(leaf => {
+  const points = [];
+  for (let index = 0; index <= 96; index++) {
+    const angle = leaf.notch + LEAF_NOTCH + (Math.PI * 2 - LEAF_NOTCH * 2) * index / 96;
+    const scale = leafEdgeScale(leaf, angle);
+    points.push({ x: Math.cos(angle) * scale, y: Math.sin(angle) * scale });
+  }
+  return [leaf, points];
+}));
+
+function leafCoversPoint(leaf, q, r, margin = 1) {
+  const x = Math.sqrt(3) * (q - leaf.q + (r - leaf.r) / 2);
+  const y = 1.5 * (r - leaf.r);
+  const distance = Math.hypot(x, y);
+  const angle = Math.atan2(y, x);
+  if (distance > leaf.radius * leafEdgeScale(leaf, angle) * margin) return false;
+  const relative = Math.atan2(Math.sin(angle - leaf.notch), Math.cos(angle - leaf.notch));
+  const notchDistance = Math.abs(relative);
+  if (notchDistance >= LEAF_NOTCH) return true;
+  const edgeAngle = leaf.notch + (relative >= 0 ? LEAF_NOTCH : -LEAF_NOTCH);
+  const edge = leaf.radius * leafEdgeScale(leaf, edgeAngle);
+  const tip = leaf.radius * LEAF_TIP;
+  const notchLimit = tip * edge * Math.sin(LEAF_NOTCH) / (edge * Math.sin(LEAF_NOTCH) * Math.cos(notchDistance)
+    - (edge * Math.cos(LEAF_NOTCH) - tip) * Math.sin(notchDistance));
+  return distance <= notchLimit;
+}
+
+const leafContains = (leaf, q, r) => leafCoversPoint(leaf, q, r, .9);
+
+const minQ = Math.floor(Math.min(...LEAVES.map(leaf => leaf.q - leaf.radius * LEAF_MAX_SCALE * 2 / 3)));
+const maxQ = Math.ceil(Math.max(...LEAVES.map(leaf => leaf.q + leaf.radius * LEAF_MAX_SCALE * 2 / 3)));
+const minR = Math.floor(Math.min(...LEAVES.map(leaf => leaf.r - leaf.radius * LEAF_MAX_SCALE * 2 / 3)));
+const maxR = Math.ceil(Math.max(...LEAVES.map(leaf => leaf.r + leaf.radius * LEAF_MAX_SCALE * 2 / 3)));
 const CELLS = [];
-for (let q = -POND_R; q <= POND_R; q++) {
-  for (let r = -POND_R; r <= POND_R; r++) {
-    if (Math.abs(q + r) <= POND_R) CELLS.push({ q, r });
+for (let q = minQ; q <= maxQ; q++) {
+  for (let r = minR; r <= maxR; r++) {
+    if (LEAVES.some(leaf => leafContains(leaf, q, r))) CELLS.push({ q, r });
   }
 }
 const cellKey = (q, r) => q + ',' + r;
 const CELL_MAP = new Map(CELLS.map(c => [cellKey(c.q, c.r), c]));
+const routeKey = (q, r, nextQ, nextR) => [cellKey(q, r), cellKey(nextQ, nextR)].sort().join('|');
+const MAX_WATER_GAP = .3;
+
+function routeWaterGap(q, r, nextQ, nextR) {
+  const samples = 64;
+  let longest = 0, current = 0;
+  for (let step = 1; step < samples; step++) {
+    const part = step / samples;
+    const sampleQ = q + (nextQ - q) * part;
+    const sampleR = r + (nextR - r) * part;
+    if (LEAVES.some(leaf => leafCoversPoint(leaf, sampleQ, sampleR))) current = 0;
+    else longest = Math.max(longest, ++current);
+  }
+  return longest * Math.sqrt(3) / samples;
+}
+
+const ROUTES = new Set();
+for (const cell of CELLS) {
+  for (const direction of DIRS.slice(0, 3)) {
+    const nextQ = cell.q + direction.dq, nextR = cell.r + direction.dr;
+    if (CELL_MAP.has(cellKey(nextQ, nextR))
+        && routeWaterGap(cell.q, cell.r, nextQ, nextR) <= MAX_WATER_GAP) {
+      ROUTES.add(routeKey(cell.q, cell.r, nextQ, nextR));
+    }
+  }
+}
 
 /* ---------------- 颜色 ---------------- */
 const BEETLE_COLORS = [
@@ -130,7 +209,7 @@ const LEVELS = [
     beetles: [[1, 0], [2, -1]],
     holes: [[-1, 1], [0, 1]],
     par: 9,
-    hint: '深色的格子是水，跳不过去。\n绕着走，别掉下去。'
+    hint: '水面上没有落脚点，跳不过去。\n沿着荷叶上的路线绕过去。'
   },
   {
     name: '第三课：重复',
@@ -191,14 +270,15 @@ function resize() {
 /* 重新计算：让整个六边形池塘居中 */
 function layoutGrid() {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const c of CELLS) {
-    const x = Math.sqrt(3) * (c.q + c.r / 2);
-    const y = 1.5 * c.r;
-    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+  for (const leaf of LEAVES) {
+    const x = Math.sqrt(3) * (leaf.q + leaf.r / 2);
+    const y = 1.5 * leaf.r;
+    const radius = leaf.radius * LEAF_MAX_SCALE;
+    minX = Math.min(minX, x - radius); maxX = Math.max(maxX, x + radius);
+    minY = Math.min(minY, y - radius); maxY = Math.max(maxY, y + radius);
   }
-  const spanX = (maxX - minX) + Math.sqrt(3);
-  const spanY = (maxY - minY) + 2;
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
   hexR = Math.max(1, Math.min((W - 48) / spanX, (H - 48) / spanY));
   ox = W / 2 - hexR * (minX + maxX) / 2;
   oy = H / 2 - hexR * (minY + maxY) / 2;
@@ -274,6 +354,9 @@ function loadLevel(i) {
 function isCell(q, r) { return CELL_MAP.has(cellKey(q, r)); }
 function holeAt(q, r) { return state.holes.some(h => h.q === q && h.r === r); }
 function walkable(q, r) { return isCell(q, r) && !holeAt(q, r); }
+function canHop(q, r, nextQ, nextR) {
+  return walkable(q, r) && walkable(nextQ, nextR) && ROUTES.has(routeKey(q, r, nextQ, nextR));
+}
 
 /* 青蛙朝向前方那格 */
 function aheadOf(f) {
@@ -627,85 +710,87 @@ function hexPath(cx, cy, r) {
   ctx.closePath();
 }
 
-/* 荷叶：每格一片，大小/缺口方向由格坐标决定（确定性，不随帧或窗口改变）。
-   半径 ≤ 0.80*hexR，相邻圆心距 1.73*hexR，所以叶与叶之间始终留有水面空隙。 */
-function padHash(q, r, k) {
-  let h = (q * 73856093) ^ (r * 19349663) ^ (k * 83492791);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  h ^= h >>> 16;
-  return (h >>> 0) / 4294967296;
-}
-
-function padShape(c) {
-  return {
-    r: hexR * (0.66 + 0.14 * padHash(c.q, c.r, 1)),
-    notch: padHash(c.q, c.r, 2) * Math.PI * 2,
-    tone: padHash(c.q, c.r, 3)
-  };
-}
-
-function leafPath(cx, cy, r, notch) {
-  const gap = 0.2;
+function leafPath(cx, cy, r, leaf) {
   ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.arc(cx, cy, r, notch + gap, notch + Math.PI * 2 - gap);
+  LEAF_OUTLINES.get(leaf).forEach((point, index) => {
+    const x = cx + point.x * r, y = cy + point.y * r;
+    if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(cx + Math.cos(leaf.notch) * r * LEAF_TIP, cy + Math.sin(leaf.notch) * r * LEAF_TIP);
   ctx.closePath();
 }
 
 function drawHexPads() {
-  // 水面上淡淡的"路线"：连接相邻可走的荷叶，空隙里也看得出方向
-  ctx.strokeStyle = 'rgba(190,255,205,0.16)';
-  ctx.lineWidth = Math.max(2, hexR * .09);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  for (const hole of state.holes) {
+    const p = cellCenter(hole.q, hole.r);
+    ctx.moveTo(p.x + hexR * .7, p.y);
+    ctx.arc(p.x, p.y, hexR * .7, 0, Math.PI * 2);
+  }
+  ctx.clip('evenodd');
+
+  for (const leaf of LEAVES) {
+    const p = cellCenter(leaf.q, leaf.r);
+    const r = hexR * leaf.radius;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    leafPath(p.x + r * .03, p.y + r * .07, r, leaf);
+    ctx.fill();
+
+    const g = ctx.createRadialGradient(p.x - r * .3, p.y - r * .35, r * .15, p.x, p.y, r);
+    g.addColorStop(0, `hsl(${118 + leaf.tone * 12}, 63%, ${39 + leaf.tone * 7}%)`);
+    g.addColorStop(1, `hsl(${125 + leaf.tone * 10}, 70%, ${21 + leaf.tone * 5}%)`);
+    ctx.fillStyle = g;
+    leafPath(p.x, p.y, r, leaf);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(191,255,174,0.12)';
+    ctx.lineWidth = Math.max(1, r * .012);
+    for (let i = 0; i < 7; i++) {
+      const a = leaf.notch + 0.5 + i * (Math.PI * 2 - 1) / 6;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      const veinLength = r * leafEdgeScale(leaf, a) * .92;
+      ctx.lineTo(p.x + Math.cos(a) * veinLength, p.y + Math.sin(a) * veinLength);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(178,255,166,0.24)';
+    ctx.lineWidth = Math.max(1, r * .018);
+    leafPath(p.x, p.y, r * .99, leaf);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  state.holes.forEach(hole => drawWaterHole(cellCenter(hole.q, hole.r)));
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(181,255,190,0.36)';
+  ctx.lineWidth = Math.max(1, hexR * .035);
   ctx.lineCap = 'round';
-  ctx.setLineDash([hexR * .1, hexR * .22]);
   ctx.beginPath();
   for (const c of CELLS) {
-    if (holeAt(c.q, c.r)) continue;
+    if (!walkable(c.q, c.r)) continue;
     const p = cellCenter(c.q, c.r);
     for (const [dq, dr] of [[1, 0], [0, 1], [-1, 1]]) {
-      if (!walkable(c.q + dq, c.r + dr)) continue;
+      if (!canHop(c.q, c.r, c.q + dq, c.r + dr)) continue;
       const n = cellCenter(c.q + dq, c.r + dr);
       ctx.moveTo(p.x, p.y); ctx.lineTo(n.x, n.y);
     }
   }
   ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.lineCap = 'butt';
 
   for (const c of CELLS) {
+    if (!walkable(c.q, c.r)) continue;
     const p = cellCenter(c.q, c.r);
-    if (holeAt(c.q, c.r)) { drawWaterHole(p); continue; }
-    const s = padShape(c);
-    const r = s.r;
-
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    leafPath(p.x + r * .06, p.y + r * .12, r, s.notch);
+    ctx.fillStyle = 'rgba(227,255,210,0.65)';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(2, hexR * .065), 0, Math.PI * 2);
     ctx.fill();
-
-    const g = ctx.createRadialGradient(p.x - r * .3, p.y - r * .35, r * .15, p.x, p.y, r);
-    g.addColorStop(0, `hsl(${128 + s.tone * 14}, 48%, ${50 + s.tone * 6}%)`);
-    g.addColorStop(1, `hsl(${140 + s.tone * 10}, 50%, ${27 + s.tone * 5}%)`);
-    ctx.fillStyle = g;
-    leafPath(p.x, p.y, r, s.notch);
-    ctx.fill();
-
-    // 叶脉：从中心向外
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    ctx.lineWidth = Math.max(1, r * .035);
-    for (let i = 0; i < 7; i++) {
-      const a = s.notch + 0.5 + i * (Math.PI * 2 - 1) / 6;
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(p.x + Math.cos(a) * r * .85, p.y + Math.sin(a) * r * .85);
-      ctx.stroke();
-    }
-
-    // 亮边，让叶子轮廓清楚
-    ctx.strokeStyle = 'rgba(200,255,215,0.38)';
-    ctx.lineWidth = Math.max(1.5, r * .05);
-    leafPath(p.x, p.y, r * .98, s.notch);
-    ctx.stroke();
   }
+  ctx.restore();
 }
 
 function drawWaterHole(p) {
@@ -1391,11 +1476,10 @@ function testCond(f, cond) {
   // 「脚下」= 青蛙现在站的这格；「前面」= 下一格
   if (cond === 'abug') return !!beetleAt(f.q, f.r);          // 脚下有虫
   const a = aheadOf(f);
-  const inGrid = isCell(a.q, a.r);
-  const isWater = inGrid && holeAt(a.q, a.r);
-  if (cond === 'water') return isWater || !inGrid;           // 前面是水/池边
-  if (cond === 'empty') return inGrid && !isWater && !beetleAt(a.q, a.r);  // 前面是空荷叶
-  if (cond === 'bug')   return inGrid && !isWater && !!beetleAt(a.q, a.r); // 前面有虫
+  const canMove = canHop(f.q, f.r, a.q, a.r);
+  if (cond === 'water') return !canMove;
+  if (cond === 'empty') return canMove && !beetleAt(a.q, a.r);
+  if (cond === 'bug') return walkable(a.q, a.r) && !!beetleAt(a.q, a.r);
   return false;
 }
 
@@ -1434,7 +1518,7 @@ function doAction(f, key) {
   switch (key) {
     case 'hop': {
       const a = aheadOf(f);
-      if (!walkable(a.q, a.r)) { toast('这里是水，转个弯试试'); sfxError(); return; }
+      if (!canHop(f.q, f.r, a.q, a.r)) { toast('前面是水，转个弯试试'); sfxError(); return; }
       f.hopFrom = { q: f.q, r: f.r, at: Date.now() };
       f.q = a.q; f.r = a.r;
       sfxHop();
@@ -1665,7 +1749,7 @@ function bindUI() {
     // 只允许跳到相邻的一格
     const dq = c.q - f.q, dr = c.r - f.r;
     const di = DIRS.findIndex(d => d.dq === dq && d.dr === dr);
-    if (di < 0) return;
+    if (di < 0 || !canHop(f.q, f.r, c.q, c.r)) return;
     f.hopFrom = { q: f.q, r: f.r, at: Date.now() };
     f.dir = di; f.q = c.q; f.r = c.r;
     sfxHop(); draw();
@@ -1692,8 +1776,8 @@ function showHelp() {
   $('#ovBody').textContent =
     '① 点卡片，排好青蛙的动作。\n' +
     '② 按 ▶，看青蛙动起来。\n' +
-    '③ 面对旁边的虫子，再按「吃」伸出舌头。\n\n' +
-    '卡片可以拖动。点池塘里相邻的荷叶，也可以让青蛙跳过去。';
+    '③ 面对相邻落脚点上的虫子，再按「吃」伸出舌头。\n\n' +
+    '沿荷叶上的路线跳，也可以点路线连接的相邻落脚点。卡片可以拖动。';
   showOverlay('知道了', hideOverlay);
 }
 

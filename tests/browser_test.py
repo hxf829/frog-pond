@@ -438,6 +438,95 @@ def layout_and_boot(b):
 
 
 @test
+def leaf_routes_match_pond(b):
+    """荷叶路线：大荷叶容纳更多路径，较宽水面不可跳，所有关卡可走通"""
+    b.load()
+    result = b.eval("""(()=>{
+      const counts=LEAVES.map(leaf=>CELLS.filter(c=>leafContains(leaf,c.q,c.r)).length);
+      const variation=LEAVES.map(leaf=>{
+        const radii=Array.from({length:36},(_,index)=>leafEdgeScale(leaf,index*Math.PI/18));
+        return Math.max(...radii)-Math.min(...radii);
+      });
+      let shapeMismatches=0;
+      ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+      for(const leaf of LEAVES){
+        leafPath(0,0,leaf.radius*100,leaf);
+        const angles=[...Array.from({length:36},(_,index)=>index*Math.PI/18),leaf.notch];
+        for(const angle of angles) for(const fraction of [.3,.6,.85,.97,1.04]){
+          const distance=leaf.radius*leafEdgeScale(leaf,angle)*fraction;
+          const x=distance*Math.cos(angle),y=distance*Math.sin(angle);
+          const r=leaf.r+y/1.5,q=leaf.q+x/Math.sqrt(3)-(r-leaf.r)/2;
+          if(ctx.isPointInPath(x*100,y*100)!==leafCoversPoint(leaf,q,r)) shapeMismatches++;
+        }
+      }
+      ctx.restore();
+      const overlaps=[];
+      for(let first=0;first<LEAVES.length;first++) for(let second=first+1;second<LEAVES.length;second++){
+        const [small,other]=[LEAVES[first],LEAVES[second]].sort((a,b)=>a.radius-b.radius);
+        const x=Math.sqrt(3)*(small.q+small.r/2), y=1.5*small.r, radius=small.radius*LEAF_MAX_SCALE;
+        const ox=Math.sqrt(3)*(other.q+other.r/2), oy=1.5*other.r;
+        if(Math.hypot(x-ox,y-oy)>(small.radius+other.radius)*LEAF_MAX_SCALE) continue;
+        let inside=0,shared=0;
+        for(let row=0;row<48;row++) for(let column=0;column<48;column++){
+          const px=x-radius+2*radius*(column+.5)/48, py=y-radius+2*radius*(row+.5)/48;
+          const r=py/1.5, q=px/Math.sqrt(3)-r/2;
+          if(leafCoversPoint(small,q,r)){inside++;if(leafCoversPoint(other,q,r)) shared++;}
+        }
+        if(shared) overlaps.push(shared/inside);
+      }
+      const triangles=LEAVES.map(leaf=>CELLS.reduce((total,c)=>{
+        if(!leafContains(leaf,c.q,c.r)) return total;
+        return total+DIRS.filter((dir,index)=>{
+          const next=DIRS[(index+1)%DIRS.length];
+          const a={q:c.q+dir.dq,r:c.r+dir.dr}, b={q:c.q+next.dq,r:c.r+next.dr};
+          return isCell(a.q,a.r)&&isCell(b.q,b.r)&&leafContains(leaf,a.q,a.r)
+            &&leafContains(leaf,b.q,b.r)&&ROUTES.has(routeKey(c.q,c.r,a.q,a.r))
+            &&ROUTES.has(routeKey(c.q,c.r,b.q,b.r))&&ROUTES.has(routeKey(a.q,a.r,b.q,b.r));
+        }).length;
+      },0)/3);
+      const covered=CELLS.every(c=>LEAVES.some(leaf=>leafContains(leaf,c.q,c.r)));
+      const levels=LEVELS.map(level=>{
+        const blocked=new Set(level.holes.map(h=>cellKey(...h)));
+        const start=level.frogs[0], seen=new Set([cellKey(start.q,start.r)]), queue=[start];
+        while(queue.length){const p=queue.shift();for(const dir of DIRS){
+          const q=p.q+dir.dq,r=p.r+dir.dr,key=cellKey(q,r);
+          if(isCell(q,r)&&!blocked.has(key)&&!seen.has(key)
+            &&ROUTES.has(routeKey(p.q,p.r,q,r))){seen.add(key);queue.push({q,r});}
+        }}
+        return isCell(start.q,start.r)&&level.holes.every(([q,r])=>isCell(q,r))
+          &&level.beetles.every(([q,r])=>seen.has(cellKey(q,r)))
+          &&CELLS.every(c=>blocked.has(cellKey(c.q,c.r))||seen.has(cellKey(c.q,c.r)));
+      });
+      const edge=CELLS.flatMap(c=>DIRS.map((d,dir)=>({q:c.q,r:c.r,dir,
+        nextQ:c.q+d.dq,nextR:c.r+d.dr}))).find(p=>isCell(p.nextQ,p.nextR)
+          &&!canHop(p.q,p.r,p.nextQ,p.nextR));
+      if(edge) edge.gap=routeWaterGap(edge.q,edge.r,edge.nextQ,edge.nextR);
+      return {counts,variation,shapeMismatches,overlaps,triangles,covered,levels,edge};})()""")
+    check(result["covered"] and min(result["counts"]) <= 2 and max(result["counts"]) >= 10
+          and max(result["triangles"]) >= 10,
+          "落脚点必须在大小不同的荷叶上: %s" % result)
+    check(min(result["variation"]) > .05, "荷叶边缘应有自然变化: %s" % result["variation"])
+    check(result["shapeMismatches"] == 0, "路线判断应与荷叶实际轮廓一致: %s" % result)
+    check(result["overlaps"] and max(result["overlaps"]) < .12,
+          "荷叶边缘应有少量重叠，而不是相互覆盖: %s" % result["overlaps"])
+    check(all(result["levels"]), "每个关卡的荷叶路线都应连通: %s" % result)
+    edge = result["edge"]
+    check(edge is not None and edge["gap"] > .3, "相邻荷叶间应有不能跳过的较宽水面")
+    b.eval("Object.assign(state.frogs[0],%s)" % json.dumps(edge))
+    check(b.eval("testCond(state.frogs[0], 'water')"), "较宽的水面应被判断为水")
+    check(not b.eval("canHop(%d,%d,%d,%d)" %
+                     (edge["nextQ"], edge["nextR"], edge["q"], edge["r"])), "路线应双向不可通过")
+    point = _cell_px(b, edge["nextQ"], edge["nextR"])
+    b.tap(point["x"], point["y"])
+    check((b.frog()["q"], b.frog()["r"]) == (edge["q"], edge["r"]), "点按不能跨过较宽的水面")
+    b.add("hop")
+    b.click("#btnStep")
+    check((b.frog()["q"], b.frog()["r"]) == (edge["q"], edge["r"]), "指令不能跨过较宽的水面")
+    check(b.eval("Array.from({length:100},()=>freeCell()).every(c=>c&&walkable(c.q,c.r))"),
+          "新虫只能出现在荷叶落脚点上")
+
+
+@test
 def long_program_layout(b):
     """长程序只在编辑区内滚动，池塘和控件位置保持不变"""
     original = b.vp
