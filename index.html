@@ -181,6 +181,15 @@
     <circle cx="16.5" cy="33" r="2.5" fill="#141414"/><circle cx="31.5" cy="33" r="2.5" fill="#141414"/>
     <path d="M16 15a9 9 0 0 1 16 0Z" fill="#141414"/>
   </symbol>
+  <symbol id="i-collection-bug" viewBox="0 0 48 48">
+    <path d="M15 23 7 19m9 11-8 4m25-11 8-4m-9 11 8 4M19 12l-4-6m14 6 4-6" stroke="#202d29" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse cx="24" cy="15" rx="8" ry="6" fill="#202d29"/>
+    <ellipse cx="24" cy="27" rx="14" ry="16" fill="currentColor" stroke="#202d29" stroke-width="1.5"/>
+    <path d="M24 13v29" stroke="#202d29" stroke-width="2"/>
+    <circle cx="17.5" cy="23" r="2.2" fill="#202d29"/><circle cx="30.5" cy="23" r="2.2" fill="#202d29"/>
+    <circle cx="18" cy="32" r="2.2" fill="#202d29"/><circle cx="30" cy="32" r="2.2" fill="#202d29"/>
+    <ellipse cx="18" cy="18" rx="3" ry="1.5" fill="#fff" opacity=".55"/>
+  </symbol>
   <symbol id="i-score" viewBox="0 0 48 48">
     <path d="M24 5 30 17l13 2-9.5 9.3 2.2 13.7L24 36l-11.7 6 2.2-13.7L5 19l13-2Z" fill="currentColor"/>
   </symbol>
@@ -214,13 +223,17 @@
     <div class="stats">
       <div class="stat" title="还剩几只甲虫"><svg class="ic"><use href="#i-bug"/></svg><b id="statBeetles">0</b></div>
       <div class="stat" title="得分"><svg class="ic"><use href="#i-score"/></svg><b id="statScore">0</b></div>
-      <div class="stat" title="卡片数"><svg class="ic"><use href="#i-blocks"/></svg><b id="statMoves">0</b></div>
+      <div class="stat" title="积木数"><svg class="ic"><use href="#i-blocks"/></svg><b id="statMoves">0</b></div>
       <label class="modePicker"><span class="sr-only">选择玩法</span><select id="modeSelect" aria-label="选择玩法"><option value="0">自由池塘</option><option value="1">挑战 1</option><option value="2">挑战 2</option><option value="3">挑战 3</option><option value="4">挑战 4</option><option value="5">挑战 5</option></select></label>
     </div>
   </header>
 
   <main id="stage">
     <canvas id="pond"></canvas>
+    <aside id="bugCollection" aria-label="吃掉的虫子">
+      <div class="collectionTitle">虫虫收集</div>
+      <div id="collectionBugs" role="list"></div>
+    </aside>
     <div id="toast"></div>
     <div id="overlay" class="hidden">
       <div class="card-box">
@@ -236,14 +249,22 @@
     <div id="progWrap">
       <div id="progHead">
         <svg class="ic sm"><use href="#i-blocks"/></svg>
-        <span id="progCount">0 张卡片</span>
+        <span class="programTitle">我的程序</span>
+        <span id="progCount">0 块积木</span>
         <div class="headBtns">
           <button id="btnUndo" class="mini" title="撤销"><svg class="ic"><use href="#i-undo"/></svg></button>
           <button id="btnClear" class="mini" title="清空"><svg class="ic"><use href="#i-trash"/></svg></button>
-          <button id="btnReset" class="mini" title="重置"><svg class="ic"><use href="#i-reset"/></svg></button>
+          <button id="btnReset" class="mini" title="重置程序（保留池塘状态）" aria-label="重置程序（保留池塘状态）"><svg class="ic"><use href="#i-reset"/></svg></button>
           <button id="btnSound" class="mini" title="声音"><svg class="ic"><use href="#i-sound"/></svg></button>
           <button id="btnHelp" class="mini" title="怎么玩"><svg class="ic"><use href="#i-help"/></svg></button>
         </div>
+      </div>
+      <div id="execStatus" data-kind="idle" role="status" aria-live="polite">
+        <span id="execIcon" aria-hidden="true">✦</span>
+        <span class="execCopy">
+          <span id="execText">搭好积木，按运行看看</span>
+          <span id="execContext" hidden></span>
+        </span>
       </div>
       <div id="program"></div>
     </div>
@@ -268,6 +289,53 @@
       <div id="pickerItems"></div>
       <button id="pickerCancel">取消</button>
     </div>
+  </section>
+</div>
+
+<div id="victory" hidden role="dialog" aria-modal="true" aria-live="polite" aria-label="胜利">
+  <div class="victorySparkles" aria-hidden="true"><span>✦</span><span>✧</span><span>✦</span><span>✧</span><span>✦</span><span>✧</span></div>
+  <section id="winScreen" class="victoryCard">
+    <div class="victoryEyebrow">✦ 虫虫收集完成 ✦</div>
+    <div class="winTrophy" aria-hidden="true"><svg class="ic"><use href="#i-trophy"/></svg></div>
+    <h2>WIN<span>!</span></h2>
+    <p class="victoryMessage">太棒啦，四种颜色都集齐了！</p>
+    <div class="victoryBugs" aria-hidden="true">
+      <svg style="color:#ff7a63"><use href="#i-collection-bug"/></svg>
+      <svg style="color:#ffc93c"><use href="#i-collection-bug"/></svg>
+      <svg style="color:#63c8f5"><use href="#i-collection-bug"/></svg>
+      <svg style="color:#fbfcfc"><use href="#i-collection-bug"/></svg>
+    </div>
+    <p id="winNext" class="victoryNext">准备进入下一关…</p>
+    <div class="victoryProgress" aria-hidden="true"><span></span></div>
+  </section>
+  <section id="finalScreen" class="victoryCard finalCard" hidden>
+    <div class="victoryEyebrow">✦ 青蛙池塘大冒险 ✦</div>
+    <h2>恭喜你，你通关了</h2>
+    <p class="victoryMessage">每一个小挑战，你都做到了！</p>
+    <svg class="celebrationArt" viewBox="0 0 420 270" role="img" aria-label="一圈青蛙一起举起大大的奖杯庆祝">
+      <ellipse cx="210" cy="148" rx="165" ry="101" fill="#285f53" stroke="#8adeaa" stroke-width="3" stroke-dasharray="4 8"/>
+      <ellipse cx="210" cy="158" rx="133" ry="69" fill="#3b8e68" opacity=".55"/>
+      <g stroke="#83df81" stroke-width="10" stroke-linecap="round">
+        <path d="M107 130 154 143M313 130 266 143M139 77 172 112M281 77 248 112M125 201 169 179M295 201 251 179"/>
+      </g>
+      <g class="celebrationFrogs">
+        <use href="#i-frog" x="69" y="91" width="69" height="69"/>
+        <use href="#i-frog" x="282" y="91" width="69" height="69"/>
+        <use href="#i-frog" x="106" y="35" width="64" height="64"/>
+        <use href="#i-frog" x="250" y="35" width="64" height="64"/>
+        <use href="#i-frog" x="88" y="176" width="72" height="72"/>
+        <use href="#i-frog" x="260" y="176" width="72" height="72"/>
+        <use href="#i-frog" x="174" y="196" width="72" height="72"/>
+      </g>
+      <g class="celebrationTrophy">
+        <path d="M166 88h88v28c0 32-19 51-44 51s-44-19-44-51Z" fill="#ffd75a" stroke="#d7962e" stroke-width="4"/>
+        <path d="M166 99h-20c0 25 9 35 25 35M254 99h20c0 25-9 35-25 35" fill="none" stroke="#f8bf3d" stroke-width="9" stroke-linecap="round"/>
+        <path d="M210 167v23m-27 10h54" fill="none" stroke="#e2a032" stroke-width="11" stroke-linecap="round"/>
+        <path d="m210 104 6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2Z" fill="#fff1a4"/>
+      </g>
+      <g fill="#ffe690"><path d="m59 65 4 9 9 4-9 4-4 9-4-9-9-4 9-4ZM357 67l3 7 7 3-7 3-3 7-3-7-7-3 7-3ZM210 21l3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/></g>
+    </svg>
+    <button id="victoryRestart" type="button">回到池塘</button>
   </section>
 </div>
 

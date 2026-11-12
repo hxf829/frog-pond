@@ -408,6 +408,7 @@ class Browser:
 # --------------------------------------------------------------------------
 TESTS = []
 OVERLAY_SHOWN = "!document.querySelector('#overlay').classList.contains('hidden')"
+VICTORY_SHOWN = "!document.querySelector('#victory').hidden"
 
 
 def test(fn):
@@ -579,7 +580,7 @@ def click_blocks_and_count(b):
     b.add("hop", "chirp", "eat", "left", "right", "spin")
     check(b.flat() == ["hop", "chirp", "eat", "left", "right", "spin"], "程序顺序错误: %s" % b.flat())
     check(b.eval("document.querySelectorAll('#program .card').length") == 6, "DOM 卡片数不对")
-    check(b.eval("document.querySelector('#progCount').textContent") == "6 张卡片", "计数文字不对")
+    check(b.eval("document.querySelector('#progCount').textContent") == "6 块积木", "计数文字不对")
     check(b.eval("document.querySelector('#statMoves').textContent") == "6", "顶栏卡片数不对")
 
 
@@ -606,7 +607,7 @@ def step_executes_one_op(b):
     check(b.eval("document.querySelectorAll('#program .card.active').length") == 1, "应高亮当前卡片")
     check(b.eval("state.eaten") == 0, "第一步不应吃到")
     b.click("#btnStep")
-    check(b.eval("state.eaten") == 1 and b.targets_left() == 1, "第二步(吃)应吃到 1 只")
+    check(b.eval("state.eaten") == 1 and b.targets_left() == 3, "第二步(吃)应吃到 1 只")
     b.click("#btnStep")
     check("跑完" in b.toast(), "跑完后再单步应提示，实际: %r" % b.toast())
     b.add("spin")                       # 编辑后 pc 复位
@@ -643,38 +644,37 @@ def turn_directions(b):
 def level_mode_targets_stay_put(b):
     """关卡模式：目标甲虫一直停在荷叶上，不会飞走、不会新增"""
     b.load(level=1)
-    check(b.eval("state.beetles.length") == 2 and b.targets_left() == 2, "第一关应恰有 2 只目标甲虫")
-    check(b.eval("document.querySelector('#statBeetles').textContent") == "2", "顶栏剩余甲虫应为 2")
+    check(b.eval("state.beetles.length") == 4 and b.targets_left() == 4, "第一关应有四种目标甲虫")
+    check(b.eval("document.querySelector('#statBeetles').textContent") == "4", "顶栏剩余甲虫应为 4")
     b.eval("updateBeetles(Date.now() + 6500)")   # 超过 5s 的换虫周期
     st = b.eval("state.beetles.map(x=>[x.q,x.r,x.alive,x.flying,x.leaving,x.arriving,x.target])")
-    check(st == [[-1, 0, True, False, False, False, True], [0, 0, True, False, False, False, True]],
+    check(st == [[q, 0, True, False, False, False, True] for q in [-1, 0, 1, 2]],
           "关卡里的甲虫发生变化: %s" % st)
     check(b.eval("state.frogs.length") == 1, "关卡应只有一只青蛙")
 
 
 @test
 def level_win_no_respawn_and_next(b):
-    """关卡模式：真实点「运行」，吃光目标后通关遮罩，之后不重生，点下一关"""
+    """关卡模式：收集四种颜色后展示 WIN 并自动进入下一关"""
     b.load(level=1)
-    b.add("eat", "hop", "eat")
+    b.add("eat", "hop", "eat", "hop", "eat", "hop", "eat", "hop")
     b.click("#btnRun")
     check(b.eval("state.running"), "点运行后应进入运行状态")
     check(b.eval("document.querySelector('#btnRun .nm').textContent") == "停止", "运行时按钮应变「停止」")
     b.wait_for("state.running === false", 15, "程序没有跑完")
-    b.wait_for(OVERLAY_SHOWN, 3, "吃光后没有通关遮罩")
-    check(b.eval("document.querySelector('#ovTitle').textContent") == "太棒啦！", "通关标题不对")
-    check(b.eval("state.eaten") == 2 and b.eval("state.score") == 20, "吃了 2 只应得 20 分")
+    b.wait_for(VICTORY_SHOWN, 3, "吃光后没有胜利画面")
+    check(b.eval("document.querySelector('#winScreen h2').textContent") == "WIN!", "通关标题不对")
+    check(b.eval("state.eaten") == 4 and b.eval("state.score") == 40, "吃了 4 只应得 40 分")
     check(b.targets_left() == 0, "目标甲虫应清零")
     check(b.eval("document.querySelector('#statBeetles').textContent") == "0", "顶栏剩余应为 0")
-    check(b.eval("document.querySelector('#ovBtn').textContent") == "下一关", "按钮应为「下一关」")
+    check(b.frog()['q'] == 1, "胜利后不能执行后续跳跃")
     b.eval("updateBeetles(Date.now() + 6000)")    # 超过一个 5s 周期
     check(b.eval("state.beetles.length") == 0, "通关后甲虫又重生了: %s" % b.eval("state.beetles.length"))
     check(b.eval("state.beetles.filter(x=>x.target).length") == 0, "通关后目标甲虫重生")
-    b.click("#ovBtn")
-    check(b.eval("state.level") == 2, "点下一关后应进入第 2 关")
-    check(not b.overlay_visible(), "进入下一关后遮罩应关闭")
+    b.wait_for("state.level === 2", 5, "应自动进入第 2 关")
+    check(b.eval("document.querySelector('#victory').hidden"), "进入下一关后胜利画面应关闭")
     check(b.eval("document.querySelector('#modeSelect').value") == "2", "下拉框应同步为挑战 2")
-    check(b.targets_left() == 2 and b.eval("state.frogs.length") == 1, "第 2 关应有 2 只目标和 1 只青蛙")
+    check(b.targets_left() == 4 and b.eval("state.frogs.length") == 1, "第 2 关应有 4 只目标和 1 只青蛙")
     check(b.flat() == [], "新关卡程序应为空")
 
 
@@ -682,17 +682,17 @@ def level_win_no_respawn_and_next(b):
 def win_via_step_mode(b):
     """单步也能通关（最后一步吃完时触发遮罩）"""
     b.load(level=1)
-    b.add("eat", "hop", "eat")
-    for _ in range(3):
+    b.add("eat", "hop", "eat", "hop", "eat", "hop", "eat")
+    for _ in range(7):
         b.click("#btnStep")
-    b.wait_for(OVERLAY_SHOWN, 3, "单步吃光后没有通关遮罩")
+    b.wait_for(VICTORY_SHOWN, 3, "单步吃光后没有胜利画面")
     check(b.targets_left() == 0, "目标应清零")
 
 
 @test
 def repeat_card_and_picker(b):
-    """重复：积木塞进重复里；改次数；第三关三只虫通关"""
-    b.load(level=3, speed=4)    # 青蛙(-1,1)朝东，甲虫 (0,1)(1,1)(2,1)
+    """重复：积木塞进重复里；改次数；第三关四种虫通关"""
+    b.load(level=3, speed=4)
     b.add("repeat")
     check(b.eval("state.focus && state.focus.parent && state.focus.parent.key") == "repeat",
           "加入重复后焦点应在它的凹槽里")
@@ -700,20 +700,22 @@ def repeat_card_and_picker(b):
     k = b.keys()
     check(k == [{"k": "repeat", "c": ["eat", "hop"], "e": [], "n": 3, "cond": None, "hasElse": False}],
           "重复结构不对: %s" % k)
-    check(b.eval("document.querySelector('#progCount').textContent") == "3 张卡片", "计数应为 3")
+    check(b.eval("document.querySelector('#progCount').textContent") == "3 块积木", "计数应为 3")
     b.click("#program .slot[data-k=repeat] > .slotHead .num")
     check(not b.eval("document.querySelector('#picker').classList.contains('hidden')"), "应弹出次数选择器")
     b.click_text("#pickerItems .pkItem", "2")
     check(b.keys()[0]["n"] == 2, "次数应改为 2: %s" % b.keys())
     check(b.eval("document.querySelector('#program .slot .num').textContent.startsWith('2')"), "DOM 次数没更新")
     b.click("#program .slot[data-k=repeat] > .slotHead .num")
-    b.click_text("#pickerItems .pkItem", "3")
-    check(b.keys()[0]["n"] == 3, "次数应改回 3")
+    b.click_text("#pickerItems .pkItem", "4")
+    check(b.keys()[0]["n"] == 4, "次数应改为 4")
     b.click("#btnRun")
     b.wait_for("state.running === false", 20, "程序没有跑完")
-    b.wait_for(OVERLAY_SHOWN, 3, "重复程序没有通关")
-    check(b.targets_left() == 0 and b.eval("state.eaten") == 3, "应吃到 3 只")
-    check(b.frog()["q"] == 2, "青蛙最终应在 q=2: %s" % b.frog())
+    b.wait_for(VICTORY_SHOWN, 3, "重复程序没有通关")
+    check(b.targets_left() == 0 and b.eval("state.eaten") == 4, "应吃到 4 只")
+    check(b.frog()["q"] == 1, "青蛙最终应在 q=1: %s" % b.frog())
+    check("第 4 / 4 次" in b.eval("document.querySelector('.slot[data-k=repeat] > .slotHead .runtimeBadge').textContent"),
+          "胜利时应保留当前循环次数")
 
 
 @test
@@ -736,7 +738,7 @@ def if_condition_run(b):
     check(b.eval("state.program[0].count") == 4, "次数应为 4")
     b.click("#btnRun")
     b.wait_for("state.running === false", 40, "程序没有跑完")
-    b.wait_for(OVERLAY_SHOWN, 3, "if 程序没有通关")
+    b.wait_for(VICTORY_SHOWN, 3, "if 程序没有通关")
     check(b.eval("state.eaten") == 4 and b.targets_left() == 0, "应吃到 4 只")
 
 
@@ -751,12 +753,21 @@ def if_else_branches(b):
     b.add("spin")
     k = b.keys()[0]
     check(k["c"] == ["hop"] and k["e"] == ["spin"] and k["cond"] == "bug", "if/else 结构不对: %s" % k)
-    check(b.eval("document.querySelector('#progCount').textContent") == "3 张卡片", "含否则应数 3 张")
+    check(b.eval("document.querySelector('#progCount').textContent") == "3 块积木", "含否则应数 3 块")
     b.click("#btnStep")   # test(bug)=真 -> hop
+    check(b.eval("document.querySelector('#execStatus').dataset.kind") == "yes", "条件成立应显示肯定结果")
+    check(b.eval("!!document.querySelector('.slot[data-k=if].active > .socket:not(.elseSocket).flowBranch')"),
+          "条件成立应突出如果分支")
+    check("成立" in b.eval("document.querySelector('.slot[data-k=if] > .slotHead .runtimeBadge').textContent"),
+          "如果积木应显示判断结果")
+    check("如果成立" in b.eval("document.querySelector('#execContext').textContent"), "执行上下文应显示判断结果")
     b.click("#btnStep")
     f = b.frog()
     check((f["q"], f["dir"]) == (-1, 0), "条件为真应只执行 then(跳): %s" % f)
+    check(b.eval("!!document.querySelector('.slot[data-k=if].flowParent > .socket.flowBranch .card[data-k=hop].active')"),
+          "执行内层积木时应保留外层分支高亮")
     b.click("#btnReset")
+    b.set_level(1)
     b.add("if", "hop")
     b.click(".slot[data-k=if] > .slotHead .elseTgl")
     b.click(".slot[data-k=if] > .socket.elseSocket")
@@ -764,43 +775,209 @@ def if_else_branches(b):
     b.click(".slot[data-k=if] > .slotHead .cond")
     b.click_text("#pickerItems .pkItem", "前面是水")
     b.click("#btnStep")
+    check(b.eval("document.querySelector('#execStatus').dataset.kind") == "no", "条件不成立应显示否定结果")
+    check(b.eval("!!document.querySelector('.slot[data-k=if].active > .socket.elseSocket.flowBranch')"),
+          "条件不成立应突出否则分支")
+    check("否则" in b.eval("document.querySelector('#execText').textContent"), "状态栏应说明执行否则")
+    check("否则" in b.eval("document.querySelector('#execContext').textContent"), "执行上下文应显示否则分支")
     b.click("#btnStep")
     f = b.frog()
     check((f["q"], f["dir"]) == (-2, 3), "条件为假应执行 else(转身): %s" % f)
+    check(b.eval("!!document.querySelector('.slot[data-k=if].flowParent > .socket.elseSocket.flowBranch .card[data-k=spin].active')"),
+          "执行否则内的积木时应保留分支高亮")
     b.click(".slot[data-k=if] > .slotHead .elseTgl")
-    check(b.eval("document.querySelector('#progCount').textContent") == "2 张卡片", "关闭否则后应数 2 张")
+    check(b.eval("document.querySelector('#progCount').textContent") == "2 块积木", "关闭否则后应数 2 块")
+
+
+@test
+def nested_loop_execution_feedback(b):
+    """嵌套循环：单步显示每层次数，进入下一轮时清除内层旧进度"""
+    b.load(level=1)
+    b.eval("state.sound=false")
+    b.add("repeat", "repeat", "chirp")
+    for index in range(2):
+        b.click("#program .slot[data-k=repeat] > .slotHead .num", index)
+        b.click_text("#pickerItems .pkItem", "2")
+
+    def badges():
+        return b.eval("""[...document.querySelectorAll('#program .slot[data-k=repeat]')].map(slot=>{
+          const badge=slot.querySelector(':scope > .slotHead .runtimeBadge');
+          return badge.hidden?null:badge.textContent;})""")
+
+    b.click("#btnStep")
+    check("第 1 / 2 次" in badges()[0] and badges()[1] is None, "外层开始时应只显示外层进度")
+    check(b.eval("document.querySelector('.slot[data-k=repeat] > .slotHead .loopDot.current') !== null")
+          and b.eval("document.querySelectorAll('.slot[data-k=repeat] > .slotHead .loopDot').length") == 2,
+          "循环应使用圆点标示当前次数")
+    check(b.eval("!!document.querySelector('.slot[data-k=repeat].active > .socket.flowBranch')"), "循环体应突出显示")
+    b.click("#btnStep")
+    check("第 1 / 2 次" in badges()[1], "进入内层循环应显示内层进度")
+    check(b.eval("document.querySelectorAll('.socket.flowBranch').length") == 2, "两层循环的执行路径都应高亮")
+    check(b.eval("document.querySelectorAll('#execContext .execChip').length") == 2,
+          "嵌套循环的两层进度应始终显示在状态栏")
+    b.click("#btnStep")
+    check(b.eval("!!document.querySelector('.card[data-k=chirp].active')"), "循环体内当前动作应高亮")
+    b.click("#btnStep")
+    check("第 2 / 2 次" in badges()[1] and "第 1 次完成" in b.eval("document.querySelector('#execText').textContent"),
+          "内层下一轮应显示正确次数")
+    check(b.eval("document.querySelector('.slot[data-k=repeat] .slot[data-k=repeat] > .slotHead .loopDot.completed') !== null"),
+          "已完成的循环次数应有圆点标记")
+    b.click("#btnStep")
+    b.click("#btnStep")
+    check("完成 2 / 2 次" in badges()[1], "内层循环完成时应显示完成次数")
+    check(b.eval("document.querySelectorAll('.slot[data-k=repeat] .slot[data-k=repeat] > .slotHead .loopDot.completed').length") == 2,
+          "循环完成后所有圆点应标记完成")
+    b.click("#btnStep")
+    check("第 2 / 2 次" in badges()[0] and badges()[1] is None, "外层新一轮不应保留内层旧进度")
+    for _ in range(6):
+        b.click("#btnStep")
+    check("完成 2 / 2 次" in badges()[0] and "完成 2 / 2 次" in badges()[1], "两层循环应各自完成")
+    check("重复完成" in b.eval("document.querySelector('#execText').textContent"), "状态栏应说明循环完成")
+    pc = b.frog()["pc"]
+    b.click("#program > .stack > .insertPoint:last-child")
+    check(b.frog()["pc"] == pc and "完成 2 / 2 次" in badges()[0], "选择插入点不应清除执行过程")
+    b.add("hop")
+    check(b.frog()["pc"] == 0 and badges() == [None, None], "修改程序后应清除旧执行结果")
+    check(b.eval("document.querySelector('#execStatus').dataset.kind") == "idle", "修改程序后应回到准备状态")
+
+
+@test
+def condition_rechecked_in_each_loop(b):
+    """每轮重新判断条件，隐藏上一轮结果并展示新的分支选择"""
+    b.load(level=1)
+    b.eval("state.sound=false")
+    b.add("repeat", "if", "chirp")
+    b.click("#program .slot[data-k=repeat] > .slotHead .num")
+    b.click_text("#pickerItems .pkItem", "2")
+    b.click("#btnStep")
+    b.click("#btnStep")
+    check(b.eval("document.querySelector('#execStatus').dataset.kind") == "yes", "第一轮应判断前面有虫")
+    b.click("#btnStep")
+    b.click("#btnStep")
+    b.eval("state.beetles.find(beetle=>beetle.q===-1 && beetle.r===0).alive=false")
+    b.click("#btnStep")
+    check(b.eval("document.querySelector('.slot[data-k=if] > .slotHead .runtimeBadge').hidden"),
+          "新一轮开始时不应显示上一轮的条件结果")
+    b.click("#btnStep")
+    check(b.eval("document.querySelector('#execStatus').dataset.kind") == "no", "第二轮应重新判断")
+    check("跳过" in b.eval("document.querySelector('#execText').textContent"), "条件变为不成立时应跳过分支")
+    check(b.eval("document.querySelectorAll('.slot[data-k=if] > .socket.flowBranch').length") == 0,
+          "不应高亮未执行的如果分支")
+
+
+@test
+def if_without_else_feedback(b):
+    """如果没有否则：条件不成立时明确显示跳过，不执行内部积木"""
+    b.load(level=1)
+    b.add("if", "chirp")
+    b.click("#program .slot[data-k=if] > .slotHead .cond")
+    b.click_text("#pickerItems .pkItem", "前面是水")
+    b.click("#btnStep")
+    check("跳过" in b.eval("document.querySelector('#execText').textContent"), "应说明跳过内部积木")
+    check(b.eval("document.querySelector('#execStatus').dataset.kind") == "no", "应显示条件不成立")
+    check(b.eval("document.querySelectorAll('.socket.flowBranch').length") == 0, "不应高亮未执行的分支")
+    check(b.frog()["pc"] == b.eval("ops.length"), "条件不成立时应跳过内部动作")
+
+
+@test
+def automatic_execution_feedback(b):
+    """连续运行：条件结果和分支实时显示，结束后保留判断结果"""
+    b.load(level=1)
+    b.add("if", "chirp")
+    b.click("#btnRun")
+    b.wait_for("state.running && document.querySelector('#execStatus').dataset.kind === 'yes'", 6,
+               "连续运行没有显示条件结果")
+    check(b.eval("!!document.querySelector('.slot[data-k=if].active > .socket.flowBranch')"),
+          "连续运行时应高亮选择的分支")
+    b.wait_for("state.running === false", 10, "连续运行没有结束")
+    check(b.eval("document.querySelector('#execText').textContent") == "程序完成啦！", "结束后应显示完成")
+    check("条件成立" in b.eval("document.querySelector('.slot[data-k=if] > .slotHead .runtimeBadge').textContent"),
+          "结束后应保留条件结果供回看")
+
+
+@test
+def execution_feedback_compact_layout(b):
+    """小屏幕：嵌套判断和循环时，状态与运行控件仍可见可用"""
+    original = b.vp
+    try:
+        for viewport in [
+            dict(name="compact landscape", width=600, height=450, mobile=False),
+            dict(name="phone portrait", width=390, height=844, mobile=True),
+        ]:
+            b.vp = viewport
+            b.setup()
+            b.load(level=1)
+            b.eval("""(()=>{
+              const outer=newCard('repeat',{count:2}),inner=newCard('repeat',{count:2});
+              const condition=newCard('if',{cond:'bug'});
+              condition.children=[newCard('chirp')];inner.children=[condition];outer.children=[inner];
+              state.program=[outer];state.focus=null;renderProgram();
+              stepOnce();stepOnce();stepOnce();
+            })()""")
+            check(b.eval("document.querySelectorAll('#execContext .execChip').length") == 3,
+                  "%s 应同时显示两层循环和条件" % viewport["name"])
+            check(b.center("#program", scroll=False)["h"] > 35, "%s 程序区不能被状态挤没" % viewport["name"])
+            for selector in ("#execStatus", "#btnRun", "#btnStep"):
+                b.assert_hittable(selector)
+            check(b.eval("document.documentElement.scrollWidth <= window.innerWidth + 1"),
+                  "%s 不应出现横向溢出" % viewport["name"])
+    finally:
+        b.vp = original
+        b.setup()
 
 
 @test
 def level5_turn_and_win(b):
-    """第五课：吃、右转、吃；最后一关回池塘"""
+    """第五课：集齐颜色后先显示 WIN，再庆祝全部通关"""
     b.load(level=5, speed=5)
-    b.add("eat", "right", "eat")
+    b.eval("state.completedLevels = new Set([1,2,3,4])")
+    b.add("eat", "right", "eat", "hop", "right", "right", "eat", "spin", "eat")
     b.click("#btnRun")
     b.wait_for("state.running === false", 20, "程序没有跑完")
-    b.wait_for(OVERLAY_SHOWN, 3, "第五课没有通关")
-    check(b.eval("document.querySelector('#ovBtn').textContent") == "回池塘", "最后一关按钮应为「回池塘」")
-    b.click("#ovBtn")
-    check(b.eval("state.level") == 0 and not b.overlay_visible(), "回池塘后应是自由池塘且遮罩关闭")
+    b.wait_for(VICTORY_SHOWN, 3, "第五课没有显示 WIN")
+    b.wait_for("!document.querySelector('#finalScreen').hidden", 5, "没有显示最终庆祝画面")
+    check(b.eval("document.querySelector('#finalScreen h2').textContent") == "恭喜你，你通关了", "通关标题不对")
+    check(b.eval("document.querySelectorAll('.celebrationFrogs use').length") >= 6, "庆祝画面应有一圈青蛙")
+    b.click("#victoryRestart")
+    check(b.eval("state.level === 0 && state.completedLevels.size === 0 && document.querySelector('#victory').hidden"),
+          "回池塘应关闭庆祝画面并重新开始挑战")
 
 
 @test
 def stop_and_reset(b):
-    """运行中点「停止」；运行中卡片不可编辑；重置恢复关卡"""
+    """运行中点「停止」；重置只清空程序，不重置池塘"""
     b.load(level=3)
     b.add("repeat", "hop")
     b.click("#btnRun")
     b.sleep(0.5)
     check(b.eval("state.running"), "应在运行")
+    b.wait_for("execution.loops.size > 0", 4, "循环没有开始")
     b.eval("document.querySelector('.pal[data-block=chirp]').click()")  # 运行中点积木应被忽略
     check(b.flat() == ["repeat"], "运行中不应能添加卡片: %s" % b.flat())
     b.click("#btnRun")
     check(b.eval("state.running") is False, "点停止后应停下")
     check(b.eval("document.querySelector('#btnRun .nm').textContent") == "运行", "按钮应变回「运行」")
+    check("次" in b.eval("document.querySelector('#execContext').textContent"), "停止后应保留循环进度")
+    pc = b.frog()["pc"]
+    b.click("#btnStep")
+    check(b.frog()["pc"] != pc and b.eval("document.querySelector('#execStatus').dataset.kind") != "idle",
+          "停止后应能从当前位置单步继续")
+    before = b.eval("""(()=>{const f=state.frogs[0];return {frog:[f.q,f.r,f.dir],
+      beetles:state.beetles.map(b=>[b.q,b.r,b.color,b.alive,b.target]),score:state.score,eaten:state.eaten};})()""")
     b.click("#btnReset")
-    f = b.frog()
-    check((f["q"], f["r"], f["dir"]) == (-1, 1, 0), "重置后青蛙应回到起点: %s" % f)
-    check(b.flat() == [] and b.targets_left() == 3, "重置后程序为空、甲虫满")
+    after = b.eval("""(()=>{const f=state.frogs[0];return {frog:[f.q,f.r,f.dir],
+      beetles:state.beetles.map(b=>[b.q,b.r,b.color,b.alive,b.target]),score:state.score,eaten:state.eaten};})()""")
+    check(after == before, "程序重置不应改变池塘: %s / %s" % (before, after))
+    check(b.flat() == [] and b.frog()['pc'] == 0 and b.eval('ops.length') == 0, "程序和执行进度应清空")
+    check(b.eval("document.querySelector('#execStatus').dataset.kind") == 'idle', "执行反馈应复位")
+    b.add('repeat', 'chirp')
+    b.click('#btnRun')
+    b.wait_for('state.running && execution.loops.size > 0', 4, '循环没有开始')
+    b.click('#btnReset')
+    check(not b.eval('state.running') and b.flat() == [] and b.eval('execution.loops.size') == 0,
+          '运行中重置应停止并清空程序和循环状态')
+    b.sleep(1)
+    check(not b.eval('state.running') and b.frog()['pc'] == 0, '重置后不能继续执行旧程序')
 
 
 def _cell_px(b, q, r):
@@ -851,8 +1028,8 @@ def tongue_eats_only_ahead(b):
           "应吃正前方的虫: %s" % result)
     check(result["start"] < .01 and result["reach"] < .01 and result["end"] < .01,
           "舌头应伸到虫子处再收回嘴边: %s" % result)
-    b.click("#btnReset")
-    check(b.eval("state.eatAnimations.length") == 0, "重置应清除吃虫动画")
+    b.set_level(1)
+    check(b.eval("state.eatAnimations.length") == 0, "重新进入关卡应清除吃虫动画")
 
 
 @test
@@ -907,6 +1084,93 @@ def free_mode_flying_beetle_not_edible(b):
 
 
 @test
+def bug_collection_counts_and_reset(b):
+    """虫虫收集：程序重置保留计数，切换玩法后清零"""
+    b.load(level=1)
+    b.eval("state.sound=false")
+    initial = b.eval("""[...document.querySelectorAll('.collectionBug')].map(item=>({
+        color:item.dataset.color, count:item.dataset.count, collected:item.classList.contains('collected'),
+        hidden:item.querySelector('.collectionCount').hidden, label:item.getAttribute('aria-label')}))""")
+    check([item['color'] for item in initial] == ['red', 'yellow', 'blue', 'white'], "四种颜色应全部展示")
+    check(all(item['count'] == '0' and not item['collected'] and item['hidden'] for item in initial), "初始均应置暗")
+    position = b.eval("""(()=>{const collection=document.querySelector('#bugCollection');
+        const rect=collection.getBoundingClientRect(), stage=document.querySelector('#stage').getBoundingClientRect();
+        return {right:stage.right-rect.right,bottom:stage.bottom-rect.bottom,
+          pointer:getComputedStyle(collection).pointerEvents};})()""")
+    check(0 <= position['right'] <= 15 and 0 <= position['bottom'] <= 15, "收集区应位于池塘右下角")
+    check(position['pointer'] == 'none', "收集区不能阻挡池塘点击")
+    b.add('eat')
+    b.click('#btnStep')
+    check(b.eval("state.eatenByColor") == [1, 0, 0, 0], "单步吃虫应统计红色")
+    b.eval("""(()=>{const frog=state.frogs[0], ahead=aheadOf(frog);
+      for(const color of [0,1,2]) {
+        state.beetles=[makeBeetle(ahead.q,ahead.r,color,Date.now(),false)];
+        doAction(frog,'eat');
+      }
+    })()""")
+    result = b.eval("""[...document.querySelectorAll('.collectionBug')].map(item=>({
+        count:item.dataset.count, collected:item.classList.contains('collected'),
+        badge:item.querySelector('.collectionCount').textContent,
+        hidden:item.querySelector('.collectionCount').hidden, label:item.getAttribute('aria-label')}))""")
+    check([item['count'] for item in result] == ['2', '1', '1', '0'], "各颜色应分别计数: %s" % result)
+    check(not b.eval('state.winning'), "同色吃多次也不能代替缺少的颜色")
+    check(all(item['collected'] and not item['hidden'] and item['badge'] == item['count'] for item in result[:3])
+          and not result[3]['collected'] and result[3]['hidden'], "吃过的虫子应点亮并显示数量")
+    check('红色' in result[0]['label'] and '2' in result[0]['label'], "无障碍标签应包含颜色和数量")
+    b.eval("""(()=>{const frog=state.frogs[0], ahead=aheadOf(frog);
+      const beetle=makeBeetle(ahead.q,ahead.r,1,Date.now(),false);
+      beetle.flying=true; state.beetles=[beetle]; doAction(frog,'eat');})()""")
+    check(b.eval("state.eatenByColor") == [2, 1, 1, 0], "没吃到飞行虫时不能计数")
+    b.click('#btnReset')
+    check(b.eval("state.eatenByColor") == [2, 1, 1, 0], "程序重置应保留收集计数")
+    check(b.eval("[state.score, state.eaten]") == [40, 4], "程序重置应保留得分和已吃数量")
+    check(b.eval("document.querySelectorAll('.collectionBug.collected').length") == 3, "程序重置应保留已点亮图案")
+    b.eval("""(()=>{const frog=state.frogs[0], ahead=aheadOf(frog);
+      state.beetles=[makeBeetle(ahead.q,ahead.r,2,Date.now(),false)]; doAction(frog,'eat');})()""")
+    b.set_level(0)
+    check(b.eval("state.eatenByColor") == [0, 0, 0, 0], "切换玩法应清空计数")
+
+
+@test
+def victory_progression_and_cancellation(b):
+    """胜利流程：自由池塘到全部五关；切换关卡可取消待显示的胜利"""
+    b.load()
+    b.eval("state.sound=false")
+    trigger = """(()=>{state.eatenByColor=[1,1,1,0];
+      const frog=state.frogs[0], beetle=state.beetles.find(item=>item.color===3&&item.alive);
+      if(!beetle) return false;
+      const direction=DIRS.findIndex(dir=>canHop(beetle.q-dir.dq,beetle.r-dir.dr,beetle.q,beetle.r));
+      if(direction<0) return false;
+      frog.q=beetle.q-DIRS[direction].dq; frog.r=beetle.r-DIRS[direction].dr; frog.dir=direction;
+      beetle.flying=false; beetle.leaving=false; beetle.arriving=false;
+      return doAction(frog,'eat')!==false;})()"""
+    b.eval("""(()=>{const frog=state.frogs[0], ahead=aheadOf(frog);
+      state.beetles=[makeBeetle(ahead.q,ahead.r,3,Date.now(),false)];})()""")
+    check(b.eval(trigger), "自由池塘应能吃到第四种颜色")
+    b.set_level(2)
+    b.sleep(.8)
+    check(b.eval("state.level===2 && !state.winning && document.querySelector('#victory').hidden"),
+          "切换玩法应取消旧的胜利计时")
+    b.set_level(0)
+    b.eval("""(()=>{const frog=state.frogs[0], ahead=aheadOf(frog);
+      state.beetles=[makeBeetle(ahead.q,ahead.r,3,Date.now(),false)];})()""")
+    check(b.eval(trigger), "自由池塘收集完成失败")
+    b.wait_for(VICTORY_SHOWN, 3, "自由池塘未显示 WIN")
+    b.wait_for('state.level===1', 5, "自由池塘应自动进入挑战 1")
+    for level in range(1, 6):
+        check(b.eval("state.level") == level, "挑战顺序错误")
+        check(b.eval("new Set(state.beetles.map(beetle=>beetle.color)).size") == 4, "每关必须有四种颜色")
+        check(b.eval(trigger), "挑战 %d 的白色虫应能吃到" % level)
+        b.wait_for(VICTORY_SHOWN, 3, "挑战 %d 未显示 WIN" % level)
+        check(b.eval("state.completedLevels.has(%d)" % level), "应记录完成的挑战")
+        if level < 5:
+            b.wait_for('state.level===%d' % (level + 1), 5, "未自动进入下一关")
+        else:
+            b.wait_for("!document.querySelector('#finalScreen').hidden", 5, "全部挑战后应显示庆祝")
+    check(b.eval("state.completedLevels.size") == 5, "应记录全部五个挑战")
+
+
+@test
 def free_mode_pop_cap(b):
     """自由池塘：停在荷叶上的甲虫不超过 6 只（观察约 11 秒）"""
     b.load()
@@ -933,7 +1197,7 @@ def undo_behaviour(b):
     check(b.eval("document.querySelectorAll('#program .card').length") == 1, "DOM 应同步")
     b.click("#btnUndo")
     check(b.flat() == [], "撤销 3 次应为空")
-    check(b.eval("document.querySelector('#progCount').textContent") == "0 张卡片", "计数应为 0")
+    check(b.eval("document.querySelector('#progCount').textContent") == "0 块积木", "计数应为 0")
     b.click("#btnUndo")
     check("没有可以撤销" in b.toast(), "空栈撤销应提示，实际 %r" % b.toast())
     b.add("hop", "eat", "spin")
@@ -950,6 +1214,27 @@ def undo_behaviour(b):
     b.click("#btnUndo")
     check(b.keys() == [{"k": "repeat", "c": [], "e": [], "n": 3, "cond": None, "hasElse": False}],
           "撤销嵌套里的 hop: %s" % b.keys())
+
+
+@test
+def scratch_drag_preview_and_quick_edit(b):
+    """拖动积木时显示对应图案，放下后可立即选择位置继续编辑"""
+    b.load()
+    source = b.assert_hittable('.pal[data-block="hop"]')
+    target = b.assert_hittable('#progEmpty')
+    b._ptr('down', source['x'], source['y'])
+    b.sleep(.03)
+    b._ptr('move', target['x'], target['y'])
+    b.sleep(.03)
+    preview = b.eval("""(()=>{const ghost=document.querySelector('.dragGhost');
+      return ghost&&{key:ghost.dataset.k,icon:ghost.querySelector('use')?.getAttribute('href')};})()""")
+    check(preview == {"key": "hop", "icon": "#i-hop"}, "拖动时应显示对应积木图案: %s" % preview)
+    b._ptr('up', target['x'], target['y'])
+    b.sleep(.03)
+    check(b.flat() == ['hop'], "拖入空白程序区后应加入积木")
+    b.click('#program > .stack > .insertPoint:last-child')
+    b.add('eat')
+    check(b.flat() == ['hop', 'eat'], "放下后立即点按应继续在选中位置添加积木")
 
 
 @test

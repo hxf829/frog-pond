@@ -34,6 +34,33 @@ body {
 /* ===== stage ===== */
 #stage { position:relative; flex:1 1 auto; min-height:0; background:#08222a; }
 #pond { width:100%; height:100%; display:block; touch-action:manipulation; }
+#bugCollection {
+  position:absolute; right:12px; bottom:12px; padding:8px 9px 9px;
+  border:1px solid rgba(167,224,209,.22); border-radius:14px;
+  background:rgba(8,35,39,.82); box-shadow:0 4px 14px rgba(0,0,0,.15);
+  pointer-events:none;
+}
+.collectionTitle { margin:0 0 5px 2px; color:#bddbd2; font-size:11px; font-weight:700; letter-spacing:.5px; }
+#collectionBugs { display:flex; gap:6px; }
+.collectionBug {
+  position:relative; display:grid; place-items:center; width:34px; height:34px;
+  border:1px solid rgba(199,235,222,.13); border-radius:10px; background:rgba(255,255,255,.05);
+}
+.collectionIcon { width:29px; height:29px; filter:brightness(.55) saturate(.75); opacity:.7; }
+.collectionBug.collected { background:rgba(255,255,255,.12); border-color:rgba(220,255,234,.38); }
+.collectionBug.collected .collectionIcon { filter:none; opacity:1; }
+.collectionCount {
+  position:absolute; top:-6px; right:-5px; display:grid; place-items:center;
+  min-width:17px; height:17px; padding:0 3px; border:1px solid #0d3d35; border-radius:9px;
+  background:#f5ce67; color:#443009; font-size:10px; font-weight:800; line-height:1;
+}
+.collectionCount[hidden] { display:none; }
+@media (max-width:599px) {
+  #bugCollection { right:8px; bottom:8px; padding:6px 7px 7px; }
+  #collectionBugs { gap:4px; }
+  .collectionBug { width:30px; height:30px; }
+  .collectionIcon { width:26px; height:26px; }
+}
 #toast {
   position:absolute; left:50%; top:10px; transform:translateX(-50%);
   background:rgba(0,0,0,.8); padding:8px 16px; border-radius:18px; font-size:14px;
@@ -266,4 +293,286 @@ body {
   #palette { margin-top:4px; }
   .pal[data-block] { padding:3px 5px; min-height:43px; }
   .pal[data-block] .ic { width:25px; height:25px; }
+}
+
+#progWrap { background:#103037; border-color:#285a5c; padding:8px; }
+#progHead { opacity:1; gap:7px; }
+.programTitle { color:#eafff3; font-size:13px; font-weight:800; }
+#progCount { margin-left:auto; font-size:11px; }
+#execStatus {
+  flex:none; display:flex; align-items:center; gap:8px; min-height:38px; margin:4px 0 6px;
+  padding:6px 9px; border:1px solid #3c6c68; border-radius:10px;
+  background:#153d40; color:#d2eee3; font-size:12px; font-weight:700; line-height:1.35;
+}
+#execIcon {
+  display:grid; place-items:center; flex:none; width:25px; height:25px;
+  border-radius:8px; background:#2a6159; color:#c6f7db; font-size:15px;
+}
+.execCopy { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; }
+#execContext { display:flex; flex-wrap:wrap; gap:4px; max-height:44px; overflow:auto; }
+#execContext[hidden] { display:none; }
+.execChip {
+  display:inline-flex; padding:2px 6px; border-radius:7px;
+  background:rgba(255,255,255,.15); color:#fff9dd; font-size:10px; font-weight:800; white-space:nowrap;
+}
+#execStatus[data-kind="yes"], #execStatus[data-kind="done"] { background:#1e5944; border-color:#71d8a3; color:#e8fff0; }
+#execStatus[data-kind="yes"] #execIcon, #execStatus[data-kind="done"] #execIcon { background:#49b979; color:#fff; }
+#execStatus[data-kind="no"], #execStatus[data-kind="notice"] { background:#634b24; border-color:#e6b859; color:#fff1d3; }
+#execStatus[data-kind="no"] #execIcon, #execStatus[data-kind="notice"] #execIcon { background:#c78c28; color:#fff; }
+#execStatus[data-kind="repeat"] { background:#5b471d; border-color:#eab24c; color:#fff2d1; }
+#execStatus[data-kind="repeat"] #execIcon { background:#c38a22; color:#fff; }
+#program {
+  border:1px solid #285057; border-radius:9px; padding:10px 12px 16px;
+  background-color:#0b252c;
+  background-image:radial-gradient(rgba(137,203,190,.13) 1px, transparent 1px);
+  background-size:16px 16px;
+}
+#progEmpty { white-space:normal; line-height:1.4; padding:14px 7px; opacity:.75; }
+.stack { gap:0; }
+.startCap {
+  width:fit-content; min-width:145px; max-width:100%; min-height:38px; margin-bottom:0;
+  border-radius:18px 18px 5px 5px; border-color:#63d88e; background:#269b59;
+  box-shadow:inset 0 2px rgba(255,255,255,.18), 0 2px 0 #126f42;
+}
+.endCap { display:none; }
+.insertPoint { height:10px; min-height:10px; }
+.insertPoint.selected { height:10px; background:#f5d46f; }
+.card {
+  min-height:44px; border-radius:7px; border-width:1.5px; padding:7px 28px 7px 10px;
+  box-shadow:inset 0 2px rgba(255,255,255,.14), 0 3px 0 rgba(0,0,0,.24);
+}
+.card .lbl { font-size:14px; font-weight:800; }
+.card .del, .slotHead .del {
+  display:grid; place-items:center; width:24px; height:24px; padding:0; cursor:pointer;
+  font:700 16px/1 sans-serif; opacity:.75;
+}
+.card .del { top:3px; right:4px; }
+.card::after, .slot::after {
+  content:''; position:absolute; z-index:1; left:17px; bottom:-6px; width:22px; height:6px;
+  background:inherit; border:1px solid rgba(0,0,0,.2); border-top:0;
+  border-radius:0 0 4px 4px; pointer-events:none;
+}
+.slot { padding:0 5px 7px 12px; border-width:1.5px; border-radius:8px; }
+.slot[data-k="if"], .slot[data-k="repeat"] {
+  background:#b97a16; border-color:#edb64e; color:#fff5df;
+  box-shadow:inset 0 2px rgba(255,255,255,.15), 0 3px 0 rgba(0,0,0,.24);
+}
+.slotHead { gap:5px; margin-left:-12px; padding:7px 7px 6px 10px; }
+.slotHead .ic { width:21px; height:21px; }
+.slotKeyword { font-size:13px; font-weight:800; white-space:nowrap; }
+.slotHead .cond, .slotHead .num {
+  min-height:30px; max-width:100%; padding:3px 7px; border:1px solid #f6d585;
+  border-radius:16px; background:#fff2c7; color:#62410d;
+  font:inherit; font-size:12px; font-weight:700; line-height:1.2;
+}
+.slotHead .cond .ic { color:#8c5c12; }
+.slotHead .elseTgl {
+  min-height:28px; padding:3px 6px; border:1px solid rgba(255,244,211,.5);
+  color:#fff7df; font:inherit; font-size:11px; font-weight:700; line-height:1.2; opacity:1;
+}
+.slotHead .del { margin-left:auto; color:#fff; }
+.runtimeBadge {
+  display:inline-flex; align-items:center; min-height:24px; padding:3px 8px;
+  border-radius:12px; background:#fff1bf; color:#704a0a; font-size:11px; font-weight:800;
+}
+.runtimeBadge[hidden] { display:none; }
+.runtimeBadge[data-kind="yes"] { background:#d8ffe3; color:#17673e; }
+.runtimeBadge[data-kind="no"] { background:#fff0dc; color:#8b4a11; }
+.loopDots { display:inline-flex; gap:3px; margin-left:5px; }
+.loopDot { width:6px; height:6px; border-radius:50%; background:#b4a272; }
+.loopDot.current { background:#d3810a; box-shadow:0 0 0 2px #f7ca64; }
+.loopDot.completed { background:#38965c; }
+.socket {
+  position:relative; margin:0 0 2px; padding:6px; min-height:46px;
+  border:1.5px dashed rgba(255,226,160,.45); border-radius:5px;
+  background:#143139;
+}
+.socket.elseSocket { border-color:rgba(255,226,160,.45); }
+.socketHint { color:#d6eee1; font-size:11px; opacity:.7; }
+.elseTag {
+  margin:4px 0 4px; padding:2px 7px; border:0; border-radius:5px;
+  background:rgba(91,55,8,.28); color:#fff0c9; font-size:12px; font-weight:800;
+}
+.card.active, .slot.active { outline:3px solid #ffe278; outline-offset:2px; z-index:2; }
+.slot.flowParent { box-shadow:0 0 0 2px rgba(255,221,105,.55), 0 3px 0 rgba(0,0,0,.24); }
+.socket.flowBranch { border:2px solid #ffe278; background:#1a4c42; box-shadow:inset 0 0 0 1px rgba(255,226,120,.25); }
+.socket.flowBranch::after {
+  content:'执行这里'; position:absolute; top:-8px; right:5px; z-index:3; padding:1px 6px;
+  border-radius:6px; background:#ffe278; color:#513a10; font-size:10px; font-weight:800;
+}
+.card.active::before { right:6px; top:50%; font-size:16px; }
+.slot.active::before { display:none; }
+.pal[data-block] { border-radius:9px; box-shadow:inset 0 2px rgba(255,255,255,.14), 0 2px 0 rgba(0,0,0,.24); }
+.pal[data-block] .nm { display:block; opacity:1; font-size:11px; font-weight:700; }
+.pal[data-block="if"], .pal[data-block="repeat"] { background:#b97a16; border-color:#edb64e; }
+.dragGhost {
+  display:flex; align-items:center; gap:8px; max-height:180px; overflow:hidden;
+  padding:8px 14px; border:1.5px solid #83cfdf; border-radius:7px;
+  background:#267e99; color:#effdff; font-size:14px; font-weight:800;
+  box-shadow:0 6px 16px #0008; opacity:.94;
+}
+.dragGhost .ic { width:25px; height:25px; flex:none; }
+.dragGhost[data-k="if"], .dragGhost[data-k="repeat"] { background:#b97a16; border-color:#edb64e; color:#fff5df; }
+.dragGhost.ghostStack { display:block; padding:0; border:0; background:transparent; overflow:hidden; }
+@media (max-width:599px) {
+  #progHead { flex-wrap:nowrap; gap:4px; }
+  #progHead > .ic { display:none; }
+  .programTitle, #progCount { white-space:nowrap; }
+  .programTitle { font-size:12px; }
+  #progCount { margin-left:0; padding:2px 5px; font-size:10px; }
+  .headBtns { gap:3px; margin-left:auto; }
+  .mini { min-width:36px; min-height:36px; }
+  #execStatus { min-height:34px; margin:3px 0 5px; padding:4px 7px; }
+  #program { padding-top:6px; }
+  .startCap { min-height:34px; }
+  .card { min-height:40px; }
+  #palette { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; margin-top:6px; }
+  .pal[data-block] { min-width:0; min-height:42px; padding:4px; flex-direction:row; justify-content:center; gap:5px; }
+  .pal[data-block] .ic { width:23px; height:23px; font-size:23px; }
+}
+@media (max-height:600px) and (min-width:600px) {
+  #execStatus { min-height:30px; padding:3px 7px; margin:2px 0 4px; }
+  #execIcon { width:21px; height:21px; }
+  .pal[data-block] .nm { font-size:9px; }
+}
+
+#program {
+  border-color:#d9dce2; background-color:#f7f7f7;
+  background-image:radial-gradient(#d9dce2 1px, transparent 1px);
+  background-size:20px 20px;
+}
+#progEmpty { color:#67717b; opacity:1; }
+#progEmpty .ic { color:#42a576; }
+.startCap {
+  background:#38b776; border:1px solid #269c61; box-shadow:none;
+}
+.card {
+  border-width:1px; border-radius:5px; color:#fff;
+  box-shadow:none;
+}
+.card[data-k="hop"], .pal[data-block="hop"] { background:#40a9b9; border-color:#3292a2; color:#fff; }
+.card[data-k="chirp"], .pal[data-block="chirp"] { background:#58a9d3; border-color:#3f92bd; color:#fff; }
+.card[data-k="eat"], .pal[data-block="eat"] { background:#4c97d7; border-color:#337fbf; color:#fff; }
+.card[data-k="left"], .card[data-k="right"], .card[data-k="spin"],
+.pal[data-block="left"], .pal[data-block="right"], .pal[data-block="spin"] {
+  background:#4c97d7; border-color:#337fbf; color:#fff;
+}
+.card[data-k="hatch"], .pal[data-block="hatch"] { background:#d966ac; border-color:#bd4f92; color:#fff; }
+.card::after, .slot::after { border-color:rgba(0,0,0,.14); }
+.slot[data-k="if"], .slot[data-k="repeat"] {
+  padding:0; border:0; border-radius:5px; background:transparent; color:#fff;
+  box-shadow:inset 16px 0 #ffab19;
+}
+.slot::after { background:#ffab19; }
+.slotHead, .slotFoot, .elseTag {
+  background:#ffab19; border:1px solid #e49310; color:#fff;
+}
+.slotHead {
+  position:relative; margin:0; padding:7px 8px; border-radius:5px 5px 4px 0;
+}
+.slotHead::before, .card:not(.active)::before {
+  content:''; position:absolute; top:-1px; left:17px; width:24px; height:6px;
+  background:#f7f7f7; clip-path:polygon(0 0, 100% 0, 78% 100%, 22% 100%);
+  pointer-events:none;
+}
+.slotHead .ic { color:#fff; }
+.slotHead .cond {
+  min-height:32px; padding:4px 16px; border:0; border-radius:0;
+  background:#5cb1d6; color:#fff;
+  clip-path:polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
+}
+.slotHead .cond .ic { color:#fff; }
+.slotHead .num { background:#fff; border:1px solid #e49310; color:#76500b; }
+.slotHead .elseTgl { background:#e9930b; border-color:#db8607; color:#fff; }
+.slotHead .del, .card .del { background:rgba(0,0,0,.16); border-color:rgba(255,255,255,.45); color:#fff; }
+.socket, .socket.elseSocket {
+  margin:0 0 0 16px; padding:6px 0 6px 6px; min-height:46px;
+  border:0; border-radius:0; background:#f7f7f7;
+  background-image:radial-gradient(#d9dce2 1px, transparent 1px); background-size:20px 20px;
+}
+.socket.empty { border:1px dashed #d2d5da; border-right:0; }
+.socketHint { color:#87919a; opacity:1; }
+.elseTag { margin:0; padding:5px 8px 5px 20px; border-radius:0; }
+.slotFoot {
+  height:19px; padding:0 8px; border-radius:0 0 5px 5px;
+  text-align:right; font-size:19px; font-weight:800; line-height:17px;
+}
+.slot.active { outline:0; }
+.slot.active > .slotHead, .slot.flowParent > .slotHead {
+  box-shadow:0 0 0 3px #ffe278;
+}
+.slot.flowParent { box-shadow:inset 16px 0 #ffab19; }
+.socket.flowBranch, .socket.elseSocket.flowBranch {
+  border:2px solid #e5ac32; border-right:0; background-color:#fff9e8;
+  box-shadow:none;
+}
+.pal[data-block] { box-shadow:none; }
+.pal[data-block="if"], .pal[data-block="repeat"],
+.dragGhost[data-k="if"], .dragGhost[data-k="repeat"] {
+  background:#ffab19; border-color:#e49310; color:#fff;
+}
+
+#victory {
+  position:fixed; inset:0; z-index:200; display:grid; place-items:center;
+  overflow:auto; padding:20px; text-align:center;
+  background:radial-gradient(ellipse at 50% 38%, rgba(31,112,91,.98), rgba(4,38,42,.98) 72%);
+}
+#victory[hidden], #victory [hidden] { display:none; }
+.victoryCard {
+  position:relative; z-index:1; width:min(100%, 470px); padding:26px 32px 25px;
+  border:2px solid rgba(174,241,201,.42); border-radius:30px;
+  background:linear-gradient(160deg, #246f5b, #113e3b); box-shadow:0 18px 60px #001a18a6, inset 0 1px #ffffff42;
+  animation:victoryPop .5s cubic-bezier(.2,1.5,.45,1) both;
+}
+.victoryEyebrow { color:#b8f0ce; font-size:13px; font-weight:800; letter-spacing:3px; }
+.winTrophy {
+  display:grid; place-items:center; width:82px; height:82px; margin:15px auto 0;
+  border:2px solid #ffe799; border-radius:50%; background:#f8c74e; color:#fff4bf;
+  box-shadow:0 0 0 8px #f7d46524, 0 5px 0 #b7802c;
+}
+.winTrophy .ic { width:48px; height:48px; }
+#winScreen h2 {
+  margin:5px 0 0; color:#ffe071; font-size:clamp(70px, 16vw, 112px); font-weight:900;
+  line-height:1; letter-spacing:2px; text-shadow:0 5px 0 #b67b26, 0 10px 22px #082c24;
+}
+#winScreen h2 span { color:#fff3ac; }
+.victoryMessage { margin:10px 0 16px; color:#edfff3; font-size:16px; font-weight:700; }
+.victoryBugs { display:flex; justify-content:center; gap:12px; }
+.victoryBugs svg {
+  width:46px; height:46px; padding:5px; border:1px solid #c6f8d78c; border-radius:13px;
+  background:#ffffff1c;
+}
+.victoryNext { margin:19px 0 8px; color:#c6e9d5; font-size:13px; font-weight:700; }
+.victoryProgress { height:5px; overflow:hidden; border-radius:5px; background:#07382f; }
+.victoryProgress span { display:block; height:100%; background:#ffdc72; animation:victoryProgress 3s linear forwards; }
+.victorySparkles { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.victorySparkles span { position:absolute; color:#ffdf80; font-size:30px; animation:victoryTwinkle 1.8s ease-in-out infinite alternate; }
+.victorySparkles span:nth-child(1) { left:15%; top:15%; }
+.victorySparkles span:nth-child(2) { left:30%; top:75%; animation-delay:.4s; }
+.victorySparkles span:nth-child(3) { right:17%; top:21%; animation-delay:.8s; }
+.victorySparkles span:nth-child(4) { right:26%; bottom:14%; animation-delay:.2s; }
+.victorySparkles span:nth-child(5) { left:9%; bottom:25%; animation-delay:.6s; }
+.victorySparkles span:nth-child(6) { right:8%; bottom:36%; animation-delay:1s; }
+.finalCard { width:min(100%, 540px); }
+.finalCard h2 { margin:12px 0 0; color:#ffe48b; font-size:clamp(24px, 5vw, 34px); text-shadow:0 3px #816125; }
+.finalCard .victoryMessage { margin:9px 0 0; }
+.celebrationArt { display:block; width:min(100%, 420px); max-height:40vh; margin:2px auto; }
+.celebrationTrophy { transform-origin:210px 150px; animation:victoryTwinkle 1.5s ease-in-out infinite alternate; }
+#victoryRestart {
+  min-height:46px; padding:10px 32px; border:1px solid #fff0a6; border-radius:15px;
+  background:#ffd363; color:#543a13; font-size:16px; font-weight:800; box-shadow:0 4px 0 #b67b26;
+}
+@keyframes victoryPop { from { opacity:0; transform:translateY(20px) scale(.9); } to { opacity:1; transform:none; } }
+@keyframes victoryProgress { from { width:0; } to { width:100%; } }
+@keyframes victoryTwinkle { from { opacity:.55; transform:scale(.93); } to { opacity:1; transform:scale(1.05); } }
+@media (max-height:600px) {
+  .victoryCard { padding:14px 24px; }
+  .winTrophy { width:60px; height:60px; margin-top:6px; }
+  .winTrophy .ic { width:35px; height:35px; }
+  #winScreen h2 { font-size:68px; }
+  .victoryMessage { margin:5px 0 8px; }
+  .victoryNext { margin:9px 0 6px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .victoryCard, .victorySparkles span, .celebrationTrophy { animation:none; }
 }
