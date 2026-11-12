@@ -300,6 +300,7 @@ function layoutGrid() {
 
 /* ---------------- 音效 ---------------- */
 let actx = null;
+let frogCroakBufferPromise = null;
 function blip(freq, dur, type = 'sine', gain = 0.06) {
   if (!state.sound) return;
   try {
@@ -315,7 +316,33 @@ function blip(freq, dur, type = 'sine', gain = 0.06) {
 const sfxHop   = () => { blip(320, .10, 'triangle', .05); setTimeout(() => blip(480, .09, 'triangle', .04), 60); };
 const sfxEat   = () => { blip(880, .07, 'square', .05); setTimeout(() => blip(1180, .10, 'square', .05), 70); };
 const sfxTurn  = () => blip(240, .07, 'sine', .035);
-const sfxChirp = () => [620, 840, 1000].forEach((f, i) => setTimeout(() => blip(f, .09, 'sine', .05), i * 70));
+function prepareFrogCroak() {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume().catch(() => {});
+    if (!frogCroakBufferPromise) {
+      const context = actx;
+      frogCroakBufferPromise = fetch('frog-croak.mp3')
+        .then(response => {
+          if (!response.ok) throw new Error('Failed to load frog sound');
+          return response.arrayBuffer();
+        })
+        .then(data => context.decodeAudioData(data))
+        .catch(() => { frogCroakBufferPromise = null; return null; });
+    }
+    return frogCroakBufferPromise;
+  } catch (e) { return Promise.resolve(null); }
+}
+function sfxChirp() {
+  if (!state.sound) return;
+  prepareFrogCroak().then(buffer => {
+    if (!buffer || !state.sound) return;
+    const source = actx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(actx.destination);
+    source.start();
+  }).catch(() => {});
+}
 const sfxHatch = () => [400, 560, 760, 980].forEach((f, i) => setTimeout(() => blip(f, .10, 'triangle', .05), i * 60));
 const sfxError = () => blip(150, .18, 'sawtooth', .04);
 const sfxFly   = () => { blip(900, .06, 'sine', .02); setTimeout(() => blip(1250, .06, 'sine', .018), 50); };
@@ -1184,11 +1211,6 @@ function renderProgram() {
     resetExecution();
   }
   programEl.innerHTML = '';
-  const start = document.createElement('div');
-  start.className = 'startCap';
-  start.innerHTML = '<span class="stxt">当点击运行</span>' +
-    '<svg class="ic"><use href="#i-run"/></svg>';
-  programEl.appendChild(start);
   if (!state.program.length) {
     const empty = document.createElement('div');
     empty.id = 'progEmpty';
@@ -1201,10 +1223,6 @@ function renderProgram() {
     strip.className = 'stack';
     renderStack(strip, state.program, null, 'then', 0);
     programEl.appendChild(strip);
-
-    const end = document.createElement('div');
-    end.className = 'endCap';
-    programEl.appendChild(end);
   }
   const n = countCards();
   $('#progCount').textContent = n + ' 块积木';
@@ -1943,7 +1961,10 @@ function toast(msg) {
 
 /* ---------------- 交互 ---------------- */
 function bindUI() {
-  window.addEventListener('pointerdown', () => { if (!dragging) ignoreClickUntil = 0; }, true);
+  window.addEventListener('pointerdown', () => {
+    if (!dragging) ignoreClickUntil = 0;
+    if (state.sound) prepareFrogCroak();
+  }, true);
   window.addEventListener('pointermove', dragMove, { passive: false });
   window.addEventListener('pointerup', endDrag);
   window.addEventListener('pointercancel', endDrag);

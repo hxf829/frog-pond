@@ -51,7 +51,7 @@ def check_headers():
     server = start_server(ROOT)
     try:
         base = 'http://127.0.0.1:%d' % server.server_address[1]
-        for path in ('/index.html', '/style.css', '/game.js', '/sw.js', '/manifest.json'):
+        for path in ('/index.html', '/style.css', '/game.js', '/frog-croak.mp3', '/sw.js', '/manifest.json'):
             request = urllib.request.Request(base + path, headers={
                 'If-Modified-Since': 'Wed, 31 Dec 2099 23:59:59 GMT'
             })
@@ -72,7 +72,7 @@ def check_legacy_migration():
         profile = os.path.join(directory, 'profile')
         os.mkdir(fixture)
         os.mkdir(profile)
-        for name in ('index.html', 'game.js', 'style.css', 'manifest.json', 'icon.svg'):
+        for name in ('index.html', 'game.js', 'style.css', 'manifest.json', 'icon.svg', 'frog-croak.mp3'):
             shutil.copyfile(os.path.join(ROOT, name), os.path.join(fixture, name))
         with open(os.path.join(fixture, 'index.html'), 'w', encoding='utf-8') as page:
             page.write('''<!doctype html><title>Legacy Game</title><script>

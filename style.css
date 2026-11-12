@@ -107,18 +107,6 @@ body {
 /* 程序栈：纵向堆叠 */
 .stack { display:flex; flex-direction:column; gap:3px; align-items:stretch; }
 
-/* start ▶ 括号 */
-.startCap {
-  display:flex; align-items:center; justify-content:space-between;
-  background:#3b8f4e; border:2px solid #6ee08a; border-radius:11px 11px 4px 4px;
-  padding:5px 12px; color:#eaffef; font-size:12px; font-weight:800;
-  margin-bottom:3px; min-height:34px;
-}
-.startCap .stxt { letter-spacing:1px; }
-.startCap .ic { width:16px; height:16px; font-size:16px; flex:none; fill:currentColor; }
-.endCap { height:8px; background:#3b8f4e; border:2px solid #6ee08a; border-top:0;
-  border-radius:0 0 11px 11px; margin-top:3px; opacity:.8; }
-
 /* 普通卡片 */
 .card {
   position:relative; display:flex; align-items:center; gap:8px;
@@ -329,12 +317,6 @@ body {
 }
 #progEmpty { white-space:normal; line-height:1.4; padding:14px 7px; opacity:.75; }
 .stack { gap:0; }
-.startCap {
-  width:fit-content; min-width:145px; max-width:100%; min-height:38px; margin-bottom:0;
-  border-radius:18px 18px 5px 5px; border-color:#63d88e; background:#269b59;
-  box-shadow:inset 0 2px rgba(255,255,255,.18), 0 2px 0 #126f42;
-}
-.endCap { display:none; }
 .insertPoint { height:10px; min-height:10px; }
 .insertPoint.selected { height:10px; background:#f5d46f; }
 .card {
@@ -424,7 +406,6 @@ body {
   .mini { min-width:36px; min-height:36px; }
   #execStatus { min-height:34px; margin:3px 0 5px; padding:4px 7px; }
   #program { padding-top:6px; }
-  .startCap { min-height:34px; }
   .card { min-height:40px; }
   #palette { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; margin-top:6px; }
   .pal[data-block] { min-width:0; min-height:42px; padding:4px; flex-direction:row; justify-content:center; gap:5px; }
@@ -443,9 +424,6 @@ body {
 }
 #progEmpty { color:#67717b; opacity:1; }
 #progEmpty .ic { color:#42a576; }
-.startCap {
-  background:#38b776; border:1px solid #269c61; box-shadow:none;
-}
 .card {
   border-width:1px; border-radius:5px; color:#fff;
   box-shadow:none;

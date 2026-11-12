@@ -434,6 +434,7 @@ def layout_and_boot(b):
                 "#btnUndo", "#btnClear", "#btnReset", "#modeSelect"]:
         b.assert_hittable(sel)
     check(b.eval("document.querySelectorAll('.pal[data-block]').length") == 8, "调色板应有 8 张卡片")
+    check(b.eval("!document.querySelector('#program').textContent.includes('当点击运行')"), "程序区不应显示多余的运行标记")
     check(b.eval("!document.querySelector('[data-block=hatch]')"), "不应再有「孵」按钮")
     check(b.eval("state.frogs.length") == 1, "自由池塘应只有一只青蛙")
 
@@ -580,6 +581,7 @@ def click_blocks_and_count(b):
     b.add("hop", "chirp", "eat", "left", "right", "spin")
     check(b.flat() == ["hop", "chirp", "eat", "left", "right", "spin"], "程序顺序错误: %s" % b.flat())
     check(b.eval("document.querySelectorAll('#program .card').length") == 6, "DOM 卡片数不对")
+    check(b.eval("!document.querySelector('#program').textContent.includes('当点击运行')"), "添加积木后不应出现运行标记")
     check(b.eval("document.querySelector('#progCount').textContent") == "6 块积木", "计数文字不对")
     check(b.eval("document.querySelector('#statMoves').textContent") == "6", "顶栏卡片数不对")
 
@@ -1298,6 +1300,40 @@ def drag_then_run(b):
     b.click("#btnRun")
     b.wait_for("state.running === false", 10)
     check(b.eval("state.eaten") == 1, "按新顺序应吃到 1 只")
+
+
+@test
+def frog_croak_sound(b):
+    """青蛙叫：播放本地真实蛙鸣，静音时不播放"""
+    b.load(level=1)
+    audio = b.eval("""(async()=>{const buffer=await prepareFrogCroak();
+      if(!buffer) return null;
+      return {duration:buffer.duration,peak:Math.max(...buffer.getChannelData(0).map(Math.abs))};})()""")
+    check(audio and .3 < audio['duration'] < 2 and audio['peak'] > .001, "本地蛙鸣应能解码且不是静音: %s" % audio)
+    result = b.eval("""(async()=>{const original=actx, originalPromise=frogCroakBufferPromise, originalSound=state.sound;
+      try {
+        const buffer=await originalPromise;
+        const sounds=[];
+        actx={state:'running',destination:{},createBufferSource(){
+          const sound={connect(){},start(){this.started=true;}};sounds.push(sound);return sound;}};
+        frogCroakBufferPromise=Promise.resolve(buffer);
+        state.sound=true; doAction(state.frogs[0],'chirp'); await Promise.resolve();
+        state.sound=false; doAction(state.frogs[0],'chirp'); await Promise.resolve();
+        let resolvePending;
+        frogCroakBufferPromise=new Promise(resolve=>{resolvePending=resolve;});
+        state.sound=true; doAction(state.frogs[0],'chirp');
+        state.sound=false; resolvePending(buffer); await Promise.resolve();
+        return {count:sounds.length,
+          started:sounds[0]&&sounds[0].started,sameBuffer:sounds[0]&&sounds[0].buffer===buffer};
+      } finally {actx=original;frogCroakBufferPromise=originalPromise;state.sound=originalSound;}
+    })()""")
+    check(result['count'] == 1 and result['started'] and result['sameBuffer'], "应播放录音，静音和加载期间静音不得播放: %s" % result)
+    b.add('chirp')
+    b.click('#btnStep')
+    b.sleep(.5)
+    audio_state = b.eval("({context:!!actx, state:actx&&actx.state, sound:state.sound, buffer:!!frogCroakBufferPromise})")
+    check(audio_state['state'] == 'running' and audio_state['buffer'], "点击后应解锁音频并加载蛙鸣: %s" % audio_state)
+    check(b.eval("(async()=>!!(await frogCroakBufferPromise))()"), "用户操作后应成功加载蛙鸣")
 
 
 @test
