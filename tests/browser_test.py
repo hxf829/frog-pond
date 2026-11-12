@@ -544,10 +544,11 @@ def long_program_layout(b):
             b.load()
             stage = b.center("#stage", scroll=False)
             panel = b.center("#panel", scroll=False)
-            if vp["width"] >= 600:
-                check(panel["r"] <= stage["l"] + 1, "%s 编辑区应在左侧" % vp["name"])
-            else:
-                check(stage["b"] <= panel["t"] + 1, "%s 窄屏应上下排列" % vp["name"])
+            check(panel['l'] >= stage['l'] and panel['r'] <= stage['r'] and
+                  panel['t'] >= stage['t'] and panel['b'] <= stage['b'], "%s 编辑区应浮在池塘上" % vp['name'])
+            check(b.eval("""CELLS.every(cell=>{const point=cellCenter(cell.q,cell.r),
+              rect=canvas.getBoundingClientRect();return document.elementFromPoint(rect.left+point.x,rect.top+point.y)===canvas;})"""),
+              "%s 编辑区不应挡住荷叶落脚点" % vp['name'])
             canvas_size = b.eval("[pond.width, pond.height]")
             b.add(*(["hop"] * 16 + ["repeat"]))
             check(len(b.flat()) == 17, "%s 没有添加完整程序" % vp["name"])
@@ -569,6 +570,35 @@ def long_program_layout(b):
             b.click_text("#pickerItems .pkItem", "2")
             check(b.eval("state.program[16].count") == 2, "%s 次数选择器不可用" % vp["name"])
             check(b.center("#stage", scroll=False) == stage, "%s 选择器改变了池塘大小" % vp["name"])
+    finally:
+        b.vp = original
+        b.setup()
+
+
+@test
+def floating_panel_and_help(b):
+    """悬浮编辑区：透明配色、收集栏和帮助弹层在桌面及手机可用"""
+    original = b.vp
+    try:
+        for viewport in [
+            dict(name='desktop', width=1024, height=768, mobile=False),
+            dict(name='phone', width=390, height=844, mobile=True),
+        ]:
+            b.vp = viewport
+            b.setup()
+            b.load()
+            layout = b.eval("""(()=>{const panel=document.querySelector('#panel'),board=document.querySelector('#program'),
+              panelRect=panel.getBoundingClientRect(),collection=document.querySelector('#bugCollection').getBoundingClientRect();
+              return {panel:getComputedStyle(panel).backgroundColor,board:getComputedStyle(board).backgroundColor,
+                overlap:collection.left<panelRect.right&&collection.right>panelRect.left&&
+                  collection.top<panelRect.bottom&&collection.bottom>panelRect.top};})()""")
+            check(layout['panel'].startswith('rgba(') and layout['board'].startswith('rgba('),
+                  '%s 编辑区和工作区应为半透明: %s' % (viewport['name'], layout))
+            check(not layout['overlap'], '%s 收集栏不能被编辑区遮挡' % viewport['name'])
+            b.click('#btnHelp')
+            b.assert_hittable('#ovBtn')
+            b.click('#ovBtn')
+            check(not b.overlay_visible(), '%s 帮助弹层应可关闭' % viewport['name'])
     finally:
         b.vp = original
         b.setup()
@@ -1097,9 +1127,11 @@ def bug_collection_counts_and_reset(b):
     check(all(item['count'] == '0' and not item['collected'] and item['hidden'] for item in initial), "初始均应置暗")
     position = b.eval("""(()=>{const collection=document.querySelector('#bugCollection');
         const rect=collection.getBoundingClientRect(), stage=document.querySelector('#stage').getBoundingClientRect();
+        const panel=document.querySelector('#panel').getBoundingClientRect();
         return {right:stage.right-rect.right,bottom:stage.bottom-rect.bottom,
+          overlap:rect.left<panel.right&&rect.right>panel.left&&rect.top<panel.bottom&&rect.bottom>panel.top,
           pointer:getComputedStyle(collection).pointerEvents};})()""")
-    check(0 <= position['right'] <= 15 and 0 <= position['bottom'] <= 15, "收集区应位于池塘右下角")
+    check(0 <= position['right'] <= 15 and position['bottom'] >= 0 and not position['overlap'], "收集区应在池塘右侧且不被编辑区遮挡")
     check(position['pointer'] == 'none', "收集区不能阻挡池塘点击")
     b.add('eat')
     b.click('#btnStep')

@@ -293,9 +293,18 @@ function layoutGrid() {
   }
   const spanX = maxX - minX;
   const spanY = maxY - minY;
-  hexR = Math.max(1, Math.min((W - 48) / spanX, (H - 48) / spanY));
-  ox = W / 2 - hexR * (minX + maxX) / 2;
-  oy = H / 2 - hexR * (minY + maxY) / 2;
+  const canvasRect = canvas.getBoundingClientRect();
+  const panelRect = $('#panel').getBoundingClientRect();
+  let areaLeft = 0, areaWidth = W, areaHeight = H;
+  if (panelRect.width < canvasRect.width * .8) {
+    areaLeft = Math.min(W - 48, Math.max(0, panelRect.right - canvasRect.left + 8));
+    areaWidth = W - areaLeft;
+  } else {
+    areaHeight = Math.max(48, Math.min(H, panelRect.top - canvasRect.top - 8));
+  }
+  hexR = Math.max(1, Math.min((areaWidth - 48) / spanX, (areaHeight - 48) / spanY));
+  ox = areaLeft + areaWidth / 2 - hexR * (minX + maxX) / 2;
+  oy = areaHeight / 2 - hexR * (minY + maxY) / 2;
 }
 
 /* ---------------- 音效 ---------------- */

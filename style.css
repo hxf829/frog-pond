@@ -5,7 +5,7 @@ body {
   background:#0d1b1e; color:#eaf6f2; user-select:none; -webkit-user-select:none;
   overscroll-behavior:none;
 }
-#app { display:flex; flex-direction:column; height:100dvh; }
+#app { position:relative; display:flex; flex-direction:column; height:100dvh; }
 
 .ic { width:1em; height:1em; display:block; fill:none; }
 .ic.logo { width:36px; height:36px; font-size:36px; }
@@ -70,7 +70,7 @@ body {
 #toast.show { opacity:1; }
 
 /* ===== overlay ===== */
-#overlay { position:absolute; inset:0; background:rgba(4,20,24,.78);
+#overlay { position:absolute; z-index:5; inset:0; background:rgba(4,20,24,.78);
   display:flex; align-items:center; justify-content:center; backdrop-filter:blur(3px); }
 #overlay.hidden { display:none; }
 .card-box { background:#0f3339; border:2px solid #2a6a6a; border-radius:20px;
@@ -256,10 +256,10 @@ body {
   #app { display:grid; grid-template-columns:clamp(260px, 32vw, 360px) minmax(0, 1fr);
     grid-template-rows:auto minmax(0, 1fr); }
   #topbar { grid-column:1 / -1; }
-  #stage { grid-column:2; grid-row:2; min-width:0; min-height:0; }
+  #stage { grid-column:1 / -1; grid-row:2; min-width:0; min-height:0; }
   #panel { grid-column:1; grid-row:2; position:relative; min-width:0; min-height:0;
-    display:flex; flex-direction:column; overflow:hidden; border-top:0;
-    border-right:1px solid #1d4b50; padding:8px 8px calc(env(safe-area-inset-bottom) + 8px); }
+    z-index:2; margin:8px; display:flex; flex-direction:column; overflow:hidden;
+    padding:8px 8px calc(env(safe-area-inset-bottom) + 8px); }
   #progWrap { flex:1 1 0; min-height:0; display:flex; flex-direction:column; }
   #progHead { flex-wrap:wrap; flex:none; }
   .headBtns { width:100%; justify-content:space-between; margin-left:0; }
@@ -270,13 +270,15 @@ body {
 }
 /* 窄屏保留上下排列，并固定编辑区高度，避免挤压池塘。 */
 @media (max-width:599px) {
-  #panel { flex:0 0 50dvh; min-height:0; display:flex; flex-direction:column; }
+  #panel { position:absolute; z-index:2; left:8px; right:8px; bottom:8px; height:50dvh;
+    min-height:0; display:flex; flex-direction:column; }
+  #bugCollection { bottom:calc(50dvh + 16px); }
   #progWrap { flex:1 1 0; min-height:0; display:flex; flex-direction:column; }
   #program { flex:1 1 0; min-height:0; max-height:none; }
   #palette, .playControls, #picker { flex:none; }
 }
 @media (max-height:600px) and (min-width:600px) {
-  #progHead > .ic, #progCount { display:none; }
+  #progHead > .ic, #progCount, .programTitle { display:none; }
   .mini { min-width:36px; min-height:36px; }
   #palette { margin-top:4px; }
   .pal[data-block] { padding:3px 5px; min-height:43px; }
@@ -418,12 +420,21 @@ body {
 }
 
 #program {
-  border-color:#d9dce2; background-color:#f7f7f7;
-  background-image:radial-gradient(#d9dce2 1px, transparent 1px);
-  background-size:20px 20px;
+  border-color:rgba(145,211,187,.25); background-color:rgba(8,51,49,.48);
+  background-image:radial-gradient(rgba(170,224,197,.2) 1px, transparent 1px);
+  background-size:20px 20px; scrollbar-width:thin; scrollbar-color:#5d9c83 transparent;
 }
-#progEmpty { color:#67717b; opacity:1; }
-#progEmpty .ic { color:#42a576; }
+#program::-webkit-scrollbar { width:6px; }
+#program::-webkit-scrollbar-thumb { border-radius:6px; background:#5d9c83; }
+#program::-webkit-scrollbar-track { background:transparent; }
+#panel {
+  border:1px solid rgba(164,225,196,.32); border-radius:18px;
+  background:rgba(7,42,41,.56); box-shadow:0 10px 35px rgba(0,20,19,.25);
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+}
+#progWrap { background:rgba(11,54,49,.24); border-color:rgba(151,218,184,.25); }
+#progEmpty { color:#d2ede0; opacity:.85; }
+#progEmpty .ic { color:#88dfae; }
 .card {
   border-width:1px; border-radius:5px; color:#fff;
   box-shadow:none;
@@ -450,7 +461,7 @@ body {
 }
 .slotHead::before, .card:not(.active)::before {
   content:''; position:absolute; top:-1px; left:17px; width:24px; height:6px;
-  background:#f7f7f7; clip-path:polygon(0 0, 100% 0, 78% 100%, 22% 100%);
+  background:#24564b; clip-path:polygon(0 0, 100% 0, 78% 100%, 22% 100%);
   pointer-events:none;
 }
 .slotHead .ic { color:#fff; }
@@ -465,11 +476,12 @@ body {
 .slotHead .del, .card .del { background:rgba(0,0,0,.16); border-color:rgba(255,255,255,.45); color:#fff; }
 .socket, .socket.elseSocket {
   margin:0 0 0 16px; padding:6px 0 6px 6px; min-height:46px;
-  border:0; border-radius:0; background:#f7f7f7;
-  background-image:radial-gradient(#d9dce2 1px, transparent 1px); background-size:20px 20px;
+  border:0; border-radius:0; background:rgba(13,62,54,.88);
+  background-image:radial-gradient(rgba(170,224,197,.2) 1px, transparent 1px); background-size:20px 20px;
 }
-.socket.empty { border:1px dashed #d2d5da; border-right:0; }
-.socketHint { color:#87919a; opacity:1; }
+.socket.empty { border:1px dashed rgba(192,229,204,.4); border-right:0; }
+.socketHint { color:#c2e2d0; opacity:.85; }
+.socket.dropTarget, .socket.elseSocket.dropTarget { background:#408f6b; outline:3px solid #ffe18a; }
 .elseTag { margin:0; padding:5px 8px 5px 20px; border-radius:0; }
 .slotFoot {
   height:19px; padding:0 8px; border-radius:0 0 5px 5px;
@@ -481,7 +493,7 @@ body {
 }
 .slot.flowParent { box-shadow:inset 16px 0 #ffab19; }
 .socket.flowBranch, .socket.elseSocket.flowBranch {
-  border:2px solid #e5ac32; border-right:0; background-color:#fff9e8;
+  border:2px solid #e5ac32; border-right:0; background-color:#315c45;
   box-shadow:none;
 }
 .pal[data-block] { box-shadow:none; }
