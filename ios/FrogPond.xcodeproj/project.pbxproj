@@ -1,0 +1,252 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000001 /* AppDelegate.swift */; };
+		A00000000000000000000002 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000002 /* GameViewController.swift */; };
+		A00000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000003 /* Assets.xcassets */; };
+		A00000000000000000000004 /* ../index.html in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000004 /* ../index.html */; };
+		A00000000000000000000005 /* ../style.css in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000005 /* ../style.css */; };
+		A00000000000000000000006 /* ../game.js in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000006 /* ../game.js */; };
+		A00000000000000000000007 /* ../frog-croak.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000007 /* ../frog-croak.mp3 */; };
+		A00000000000000000000008 /* ../manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000008 /* ../manifest.json */; };
+		A00000000000000000000009 /* ../icon.svg in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000009 /* ../icon.svg */; };
+		A0000000000000000000000A /* ../sw.js in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000A /* ../sw.js */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B00000000000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B00000000000000000000002 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		B00000000000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B00000000000000000000004 /* ../index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = ../index.html; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000005 /* ../style.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = ../style.css; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000006 /* ../game.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = ../game.js; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000007 /* ../frog-croak.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "../frog-croak.mp3"; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000008 /* ../manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ../manifest.json; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000009 /* ../icon.svg */ = {isa = PBXFileReference; lastKnownFileType = image.svg; path = ../icon.svg; sourceTree = SOURCE_ROOT; };
+		B0000000000000000000000A /* ../sw.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = ../sw.js; sourceTree = SOURCE_ROOT; };
+		B0000000000000000000000B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B0000000000000000000000C /* FrogPond.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FrogPond.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D00000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C00000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000002 /* FrogPond */,
+				C00000000000000000000003 /* Game */,
+				C00000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C00000000000000000000002 /* FrogPond */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000001 /* AppDelegate.swift */,
+				B00000000000000000000002 /* GameViewController.swift */,
+				B0000000000000000000000B /* Info.plist */,
+				B00000000000000000000003 /* Assets.xcassets */,
+			);
+			path = FrogPond;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000003 /* Game */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000004 /* ../index.html */,
+				B00000000000000000000005 /* ../style.css */,
+				B00000000000000000000006 /* ../game.js */,
+				B00000000000000000000007 /* ../frog-croak.mp3 */,
+				B00000000000000000000008 /* ../manifest.json */,
+				B00000000000000000000009 /* ../icon.svg */,
+				B0000000000000000000000A /* ../sw.js */,
+			);
+			name = Game;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B0000000000000000000000C /* FrogPond.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E00000000000000000000001 /* FrogPond */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F00000000000000000000002 /* Build configuration list for PBXNativeTarget "FrogPond" */;
+			buildPhases = (
+				D00000000000000000000001 /* Sources */,
+				D00000000000000000000002 /* Frameworks */,
+				D00000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FrogPond;
+			productName = FrogPond;
+			productReference = B0000000000000000000000C /* FrogPond.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E00000000000000000000002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					E00000000000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = F00000000000000000000001 /* Build configuration list for PBXProject "FrogPond" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				"zh-Hans",
+				en,
+				Base,
+			);
+			mainGroup = C00000000000000000000001;
+			productRefGroup = C00000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E00000000000000000000001 /* FrogPond */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D00000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000003 /* Assets.xcassets in Resources */,
+				A00000000000000000000004 /* ../index.html in Resources */,
+				A00000000000000000000005 /* ../style.css in Resources */,
+				A00000000000000000000006 /* ../game.js in Resources */,
+				A00000000000000000000007 /* ../frog-croak.mp3 in Resources */,
+				A00000000000000000000008 /* ../manifest.json in Resources */,
+				A00000000000000000000009 /* ../icon.svg in Resources */,
+				A0000000000000000000000A /* ../sw.js in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D00000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000001 /* AppDelegate.swift in Sources */,
+				A00000000000000000000002 /* GameViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F00000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+			};
+			name = Debug;
+		};
+		F00000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+			};
+			name = Release;
+		};
+		F00000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4S5CNLZYH6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FrogPond/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frogpond.game;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		F00000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4S5CNLZYH6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FrogPond/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frogpond.game;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F00000000000000000000001 /* Build configuration list for PBXProject "FrogPond" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F00000000000000000000003 /* Debug */,
+				F00000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F00000000000000000000002 /* Build configuration list for PBXNativeTarget "FrogPond" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F00000000000000000000005 /* Debug */,
+				F00000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E00000000000000000000002 /* Project object */;
+}

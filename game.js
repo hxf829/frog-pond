@@ -331,7 +331,7 @@ function prepareFrogCroak() {
     if (actx.state === 'suspended') actx.resume().catch(() => {});
     if (!frogCroakBufferPromise) {
       const context = actx;
-      frogCroakBufferPromise = fetch('frog-croak.mp3')
+      frogCroakBufferPromise = fetch(window.frogCroakDataURL || 'frog-croak.mp3')
         .then(response => {
           if (!response.ok) throw new Error('Failed to load frog sound');
           return response.arrayBuffer();

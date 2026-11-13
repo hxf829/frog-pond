@@ -2,3 +2,6 @@
 *.log
 __pycache__/
 .claude/worktrees/
+ios/build/
+*.xcuserstate
+xcuserdata/

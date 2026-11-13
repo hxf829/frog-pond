@@ -1,14 +1,30 @@
 # 🐸 青蛙池塘 Frog Pond
 
-一个给孩子自由探索编程的池塘游戏，参考 Computer History Museum 的 Frog Pond 展项及其 CHI 2014 论文 *Programming in the Pond*。本项目针对单屏 iPad 和幼儿做了自己的调整，并非官方作品。纯 HTML、CSS、JavaScript，无构建步骤。
+一个给孩子自由探索编程的池塘游戏，参考 Computer History Museum 的 Frog Pond 展项及其 CHI 2014 论文 *Programming in the Pond*。本项目针对单屏 iPad 和幼儿做了自己的调整，并非官方作品。游戏使用 HTML、CSS、JavaScript；iPad App 使用 Xcode 封装并内置游戏资源。
 
-## 在 iPad 上玩
+## 安装 iPad App
+
+项目包含可离线运行的 iPad App，要求 iPadOS 16 或更新版本。源代码及游戏资源必须保留在当前项目目录，不能只拷贝 Xcode 工程文件。
+
+1. 使用数据线连接并解锁 iPad，在 iPad 上选择信任此电脑。
+2. 在 Mac 的 Xcode 中打开 `ios/FrogPond.xcodeproj`，在 **Xcode → Settings → Accounts** 登录 Apple 账号。
+3. 选择项目的 **FrogPond** target，在 **Signing & Capabilities** 中勾选 **Automatically manage signing** 并选择自己的 Team。如果 Bundle Identifier 已被使用，改成自己独有的标识，例如 `com.example123.frogpond`（每一段只使用英文字母、数字和连字符）。
+4. 在 iPad 的 **设置 → 隐私与安全性 → 开发者模式** 中开启开发者模式并按提示重启。如果看不到该选项，先连接 Xcode 并尝试运行一次。
+5. 在 Xcode 顶部的运行设备中选择自己的 iPad，点击 ▶。首次运行时按提示在 iPad 上信任开发者。安装并验证后可从主屏幕启动游戏，游戏资源已内置，游玩时无需连接 Mac 或网络。
+
+免费 Apple 账号可以使用 Personal Team 安装到自己的设备，但签名通常 7 天后过期，需要用 Xcode 重新安装。付费开发者账号可按 Apple 的签名和设备注册规则分发应用。详见 Apple 的[账号与签名说明](https://developer.apple.com/help/account/basics/about-your-developer-account)和[开发者模式说明](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)。
+
+运行 `sh ios/build-unsigned.sh` 可以生成 `ios/build/FrogPond-unsigned.ipa`。这个包**未签名，不能直接安装到 iPad**；本机没有可用的 Apple 开发签名证书时，请使用上述 Xcode 方式签名并安装。拥有相应开发者计划和注册设备时，也可以在 Xcode 中通过 **Product → Archive → Distribute App** 导出已签名的安装包。
+
+也可以运行 `sh ios/test-simulator.sh <iPad模拟器UDID>` 验证 iPad 模拟器中的离线页面、积木执行和蛙鸣加载；使用 `xcrun simctl list devices available` 查看模拟器 UDID。
+
+## 在 iPad 浏览器上玩
 
 1. 让 iPad 和 Mac 连接同一个 Wi-Fi。
 2. 在 Mac 上双击 `start-server.command`，打开终端显示的访问地址。
 3. 用 iPad 的 Safari 打开地址，也可以点分享 → **添加到主屏幕**。
 
-本地服务器禁止缓存游戏文件，重新打开或刷新页面即可加载最新版本。如果之前已经启动服务器，请先关闭旧服务器，再重新运行 `start-server.command`。旧版的游戏离线缓存会在联网打开游戏时清除，不会清除其他网站的数据。游戏现在需要联网访问本地服务器，无法离线游玩；如果改用其他服务器部署，也需要在该服务器配置 `Cache-Control: no-store` 响应头。
+本地服务器禁止缓存游戏文件，重新打开或刷新页面即可加载最新版本。如果之前已经启动服务器，请先关闭旧服务器，再重新运行 `start-server.command`。旧版的游戏离线缓存会在联网打开游戏时清除，不会清除其他网站的数据。浏览器版本需要连接本地服务器；如果改用其他服务器部署，也需要在该服务器配置 `Cache-Control: no-store` 响应头。
 
 ## 怎样玩
 
